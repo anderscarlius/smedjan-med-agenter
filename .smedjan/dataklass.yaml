@@ -1,0 +1,149 @@
+# Smedjan Dataklass Configuration
+# Version: 0.1
+# Datum: 2026-09-02
+
+# Dataklass-definitioner
+data_classes:
+  0:
+    name: "Syntetiskt"
+    description: "Ingen skyddad data, publikt OK"
+    allowed_environments:
+      - "dev"
+      - "test"
+      - "QA"
+      - "prod"
+    allowed_in_git: true
+    requires_audit_log: false
+    examples:
+      - "Syntetiska patient-ID:n (SYNTH-001)"
+      - "Fake namn och adresser"
+      - "Simulerade vitals"
+    validation_rules:
+      - "Inga riktiga personnummer (YYYYMMDD-XXXX med giltig checksum)"
+      - "Inga riktiga namn från namnregister"
+      - "Inga riktiga adresser"
+
+  1:
+    name: "Pseudonymiserat"
+    description: "Ingen PII, endast inom VGR"
+    allowed_environments:
+      - "test"  # Inom VGR-nätverk
+      - "QA"
+      - "prod"
+    allowed_in_git: false  # Ej publika repos
+    requires_audit_log: false
+    examples:
+      - "UUID:er istället för personnummer"
+      - "Aggregerad statistik"
+      - "Avidentifierad data"
+    validation_rules:
+      - "Inga personnummer"
+      - "Inga namn"
+      - "Inga adresser"
+      - "Pseudonymiseringsmapping lagras separat (krypterat)"
+
+  2:
+    name: "Känsligt"
+    description: "Patientdata, nycklar, endast produktion"
+    allowed_environments:
+      - "prod"  # Endast produktion
+    allowed_in_git: false
+    requires_audit_log: true
+    examples:
+      - "Riktiga personnummer"
+      - "Patientnamn"
+      - "Vitals från riktiga patienter"
+      - "API-nycklar, secrets"
+    validation_rules:
+      - "ALDRIG i dev/test-miljöer"
+      - "Fullständig audit-logg (vem, när, vad)"
+      - "Kryptering i vila och transit"
+      - "Access control (rollbaserad)"
+
+# Valideringsregler (regex-mönster)
+validation:
+  personnummer:
+    pattern: '\b(19|20)\d{6}[-\s]?\d{4}\b'
+    description: "Svenska personnummer (YYYYMMDD-XXXX)"
+    action: "reject"
+    data_class: 2
+
+  api_keys:
+    patterns:
+      - 'sk-[a-zA-Z0-9]{32,}'  # OpenAI-style
+      - 'AKIA[A-Z0-9]{16}'     # AWS
+      - 'ghp_[a-zA-Z0-9]{36}'  # GitHub personal access token
+    description: "API-nycklar från olika providers"
+    action: "reject"
+    data_class: 2
+
+  email:
+    pattern: '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+    description: "E-postadresser"
+    action: "warn"  # Kan vara OK i vissa sammanhang
+    data_class: 1  # Minst klass 1
+
+  swedish_names:
+    # Lista vanligaste svenska förnamn/efternamn (förenkl ad)
+    patterns:
+      - '\b(Erik|Anna|Lars|Maria|Johan|Eva|Karl|Karin|Anders|Lisa)\b'
+    description: "Vanliga svenska namn (förenklad lista)"
+    action: "warn"
+    data_class: 1  # Minst klass 1
+
+# Miljö-konfiguration
+environments:
+  dev:
+    name: "Development"
+    allowed_data_classes: [0]
+    location: "Lokal dator, publika repos"
+    audit_required: false
+
+  test:
+    name: "Test"
+    allowed_data_classes: [0, 1]
+    location: "VGR-nätverk eller Docker"
+    audit_required: false
+
+  qa:
+    name: "QA"
+    allowed_data_classes: [0, 1]
+    location: "VGR-nätverk"
+    audit_required: false
+
+  prod:
+    name: "Production"
+    allowed_data_classes: [0, 1, 2]
+    location: "VGR-säker miljö"
+    audit_required: true
+
+# Audit-logg-konfiguration (för klass 2)
+audit:
+  enabled: true
+  log_format: "JSON"
+  fields:
+    - "timestamp"
+    - "user_id"
+    - "action"  # create/read/update/delete
+    - "resource_type"  # t.ex. "patient_record"
+    - "resource_id"  # Pseudonymiserad (ej själva datan)
+    - "data_class"
+    - "ip_address"
+    - "result"  # success/failure
+  storage:
+    type: "append-only"
+    encryption: "AES-256"
+    retention_years: 3  # Svensk lag: minst 3 år
+  access:
+    roles: ["auditor", "security_officer"]
+
+# Etapp 0-verifiering
+etapp_0:
+  data_class: 0
+  verification_checklist:
+    - "Alla specs: klass 0"
+    - "Alla stories: klass 0"
+    - "Alla exempel: syntetiska"
+    - "Inga secrets i Git"
+    - "Inga riktiga personnummer"
+    - "Inga riktiga namn från namnregister"
