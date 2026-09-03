@@ -1,0 +1,124 @@
+# Docker Compose – Test-miljö skelett
+
+**Syfte:** Docker Compose-konfiguration för testmiljöer. Etapp 0: Skelett med kommentarer. Etapp 1: Körbart.
+
+**Version:** 0.1 (skelett)  
+**Datum:** 2026-09-02
+
+---
+
+```yaml
+version: '3.8'
+
+services:
+  # App-service (placeholder för faktisk app)
+  # I etapp 1: Ersätt med riktig image
+  app:
+    # image: ghcr.io/vgr/datahubb-ews:latest
+    image: nginx:alpine  # Placeholder för etapp 0
+    container_name: smedjan-test-app
+    ports:
+      - "8080:80"
+    environment:
+      # Miljövariabler (använd .env-fil, ej secrets här)
+      - ENV=test
+      - LOG_LEVEL=debug
+      # - PHILIPS_API_URL=${PHILIPS_API_URL}
+      # - DB_HOST=postgres
+      # - REDIS_URL=redis://redis:6379
+    depends_on:
+      - postgres
+      - redis
+    # health check kommer i etapp 1
+    # healthcheck:
+    #   test: ["CMD", "curl", "-f", "http://localhost/health"]
+    #   interval: 10s
+    #   timeout: 5s
+    #   retries: 3
+
+  # Postgres-databas
+  postgres:
+    image: postgres:15-alpine
+    container_name: smedjan-test-db
+    environment:
+      POSTGRES_USER: testuser
+      POSTGRES_PASSWORD: testpass  # OBS: Ej prod-lösenord
+      POSTGRES_DB: smedjan_test
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    # healthcheck:
+    #   test: ["CMD-SHELL", "pg_isready -U testuser"]
+    #   interval: 5s
+    #   timeout: 3s
+    #   retries: 5
+
+  # Redis (för caching/sessions)
+  redis:
+    image: redis:7-alpine
+    container_name: smedjan-test-redis
+    ports:
+      - "6379:6379"
+    # healthcheck:
+    #   test: ["CMD", "redis-cli", "ping"]
+    #   interval: 5s
+    #   timeout: 3s
+    #   retries: 5
+
+  # Mock för externa tjänster (t.ex. Philips API)
+  # I etapp 1: Implementera mock-server
+  # mock-philips:
+  #   image: ghcr.io/vgr/philips-mock:latest
+  #   container_name: smedjan-test-philips-mock
+  #   ports:
+  #     - "9000:9000"
+  #   environment:
+  #     - MOCK_DATA_FILE=/data/philips-mock-data.json
+
+volumes:
+  postgres-data:
+    driver: local
+
+# Networks (optional, default bridge fungerar för test)
+# networks:
+#   smedjan-test:
+#     driver: bridge
+```
+
+---
+
+## Användning
+
+### Starta testmiljö
+```bash
+docker compose -f docker/docker-compose.test.yml up -d
+```
+
+### Stoppa testmiljö
+```bash
+docker compose -f docker/docker-compose.test.yml down
+```
+
+### Rensa volumes (för clean slate)
+```bash
+docker compose -f docker/docker-compose.test.yml down -v
+```
+
+---
+
+## TODO för etapp 1
+
+1. **Ersätt app-image** med riktig image (bygg från kod)
+2. **Lägg till health checks** för alla services
+3. **Implementera Philips API-mock** (mock-server som returnerar syntetiska vitals)
+4. **Lägg till testdata-init** (SQL-script för att seeda databas med testdata)
+5. **Environment-fil**: Skapa `.env.test.example` med alla variabler (utan secrets)
+
+---
+
+## Se också
+
+- `docker-compose.qa.yml`: QA-miljö (liknande men med mer data)
+- `docker-compose.prod.yml`: **Ska INTE finnas här** (prod hanteras av VGR-drift)
+- `docker/README.md`: Dokumentation av miljövariabler och image-strategi

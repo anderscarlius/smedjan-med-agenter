@@ -1,0 +1,282 @@
+# Smedjan Agent Configuration
+# Version: 0.1
+# Datum: 2026-09-02
+
+agents:
+  A0:
+    name: "Intag"
+    step: 0
+    pool: A
+    pool_provider: "Anthropic"
+    model: "claude-3-opus"
+    responsibilities:
+      - "Strukturera förslagsspecar"
+      - "Validera dataklass"
+      - "Producera spec enligt mall"
+    input: "Förslagsspec (markdown)"
+    output: "Strukturerad spec (markdown + YAML frontmatter)"
+    max_loops: 1
+    separation_rules: []
+
+  A1:
+    name: "Specgranskare"
+    step: 1
+    pool: B
+    pool_provider: "OpenAI"
+    model: "gpt-4"
+    responsibilities:
+      - "Granska spec från A0"
+      - "Validera fullständighet, specificitet, testbarhet"
+      - "Rekommendera G1-beslut"
+    input: "Strukturerad spec från A0"
+    output: "Granskningsrapport"
+    max_loops: 1
+    separation_rules: ["S1: Annan pool än A0"]
+
+  A2:
+    name: "Nedbrytare"
+    step: 2
+    pool: C
+    pool_provider: "Mistral"
+    model: "mistral-large"
+    responsibilities:
+      - "Bryta ner spec i user stories"
+      - "Skapa Given/When/Then-AC"
+      - "Identifiera beroenden"
+    input: "Godkänd spec (efter G1)"
+    output: "User stories (YAML/markdown)"
+    max_loops: 1
+    separation_rules: []
+
+  A3:
+    name: "Storygranskare"
+    step: 2
+    pool: B
+    pool_provider: "OpenAI"
+    model: "gpt-4"
+    responsibilities:
+      - "Granska stories från A2"
+      - "Validera INVEST-kriterier"
+      - "Rekommendera G2-beslut"
+    input: "Stories från A2"
+    output: "Granskningsrapport"
+    max_loops: 1
+    separation_rules: ["S1: Annan pool än A2"]
+
+  A4:
+    name: "Kodare"
+    step: 3
+    pool: A
+    pool_provider: "Anthropic"
+    model: "claude-3-opus"
+    responsibilities:
+      - "Implementera user stories"
+      - "Skriva grundläggande unit-tester"
+      - "Skapa PR"
+    input: "User story med AC"
+    output: "Kod + tester + PR"
+    max_loops: 3
+    loop: "L1"
+    separation_rules: []
+
+  A5:
+    name: "Kodgranskare"
+    step: 3
+    pool: B
+    pool_provider: "OpenAI"
+    model: "gpt-4"
+    responsibilities:
+      - "Granska kod från A4"
+      - "Kontrollera korrekthet, säkerhet, läsbarhet"
+      - "Föreslå förbättringar"
+    input: "PR från A4"
+    output: "Granskningskommentarer"
+    max_loops: 3
+    loop: "L1"
+    separation_rules: ["S1: Annan pool än A4"]
+
+  A6:
+    name: "Testförfattare"
+    step: 4
+    pool: C
+    pool_provider: "Mistral"
+    model: "mistral-large"
+    responsibilities:
+      - "Skriva omfattande unit-tester"
+      - "Nå >80% täckning"
+      - "Testa edge cases"
+    input: "Merged kod från steg 3"
+    output: "Utökade unit-tester + coverage-rapport"
+    max_loops: 1
+    separation_rules: ["S2: Annan pool än A4"]
+
+  A7:
+    name: "Integrationstestare"
+    step: 5
+    pool: C
+    pool_provider: "Mistral"
+    model: "mistral-large"
+    responsibilities:
+      - "Skriva integrationstester"
+      - "Testa API, databas, externa tjänster"
+    input: "Modul med unit-tester"
+    output: "Integrationstester + rapport"
+    max_loops: 1
+    separation_rules: []
+
+  A8:
+    name: "Deploy"
+    step: [6, 9, 10]
+    pool: C
+    pool_provider: "Mistral"
+    model: "mistral-medium"
+    responsibilities:
+      - "Deploya till test/QA/prod"
+      - "Kör hälsokontroller"
+      - "Rollback vid fel"
+    input: "Kod + deploy-manifest"
+    output: "Deploy-rapport + miljö-URL"
+    max_loops: 1
+    separation_rules: ["S6: Funktionell roll, ej beslutsfattande"]
+
+  A9:
+    name: "Systemtestare"
+    step: [7, 9]
+    pool: B
+    pool_provider: "OpenAI"
+    model: "gpt-4"
+    responsibilities:
+      - "Kör E2E-tester"
+      - "Testa prestanda och säkerhet"
+      - "Producera systemtestrapport"
+    input: "Deployed system (test/QA-miljö)"
+    output: "Systemtestrapport"
+    max_loops: 1
+    separation_rules: ["S3: Annan pool än A4, helst än A6"]
+
+  A10:
+    name: "Utfallsanalytiker"
+    step: 8
+    pool: C
+    pool_provider: "Mistral"
+    model: "mistral-large"
+    responsibilities:
+      - "Analysera testresultat"
+      - "Riskbedömning"
+      - "Rekommendera G3-beslut"
+    input: "Testrapporter från steg 4–7"
+    output: "Utfallsrapport"
+    max_loops: 1
+    separation_rules: ["S4: Alltid annan instans än A4 och A9"]
+
+  A11:
+    name: "Driftvakt"
+    step: 11
+    pool: D
+    pool_provider: "Local"
+    model: "gemma4-9b"
+    responsibilities:
+      - "Övervaka produktion"
+      - "Larma vid problem"
+      - "Föreslå åtgärder"
+    input: "Prod-loggar + metrics"
+    output: "Incidentrapport + larm"
+    max_loops: null  # Kontinuerlig
+    separation_rules: ["S5: Annan pool än A12"]
+    open_questions:
+      - "Hur mycket får A11 ändra autonomt? Oklart i etapp 0."
+
+  A12:
+    name: "Förbättring"
+    step: 11
+    pool: C
+    pool_provider: "Mistral"
+    model: "mistral-large"
+    responsibilities:
+      - "Identifiera teknisk skuld"
+      - "Föreslå refactoring"
+    input: "Prod-kod + metrics"
+    output: "Teknisk skuld-rapport"
+    max_loops: null  # Kontinuerlig
+    separation_rules: ["S5: Annan pool än A11"]
+
+  A13:
+    name: "Dokumentatör"
+    step: 11
+    pool: C
+    pool_provider: "Mistral"
+    model: "mistral-medium"
+    responsibilities:
+      - "Skriva användar-dokumentation"
+      - "Skriva drift-dokumentation"
+      - "Skriva API-dokumentation"
+    input: "Kod + specs + deployment"
+    output: "Markdown-dokumentation"
+    max_loops: null  # Kontinuerlig
+    separation_rules: []
+
+# Pool-konfiguration
+pools:
+  A:
+    provider: "Anthropic"
+    default_model: "claude-3-opus"
+    fallback_model: "claude-3-sonnet"
+    purpose: "Kreativt arbete (intag, kodning)"
+
+  B:
+    provider: "OpenAI"
+    default_model: "gpt-4"
+    fallback_model: "gpt-3.5-turbo"
+    purpose: "Granskning och kritiskt tänkande"
+
+  C:
+    provider: "Mistral"
+    default_model: "mistral-large"
+    fallback_model: "mistral-medium"
+    purpose: "Strukturerat arbete (nedbrytning, test, deploy)"
+
+  D:
+    provider: "Local"
+    default_model: "gemma4-9b"
+    fallback_model: null
+    purpose: "Kostnadseffektiv övervakning"
+
+# Separationsregler (S1–S6)
+separation_rules:
+  S1: "Kodare (A4) och kodgranskare (A5) är olika pooler"
+  S2: "Testförfattare (A6) är annan pool än kodare (A4)"
+  S3: "Systemtestare (A9) är annan pool än kodare (A4), helst än testförfattare (A6)"
+  S4: "Utfallsanalytiker (A10) är alltid annan instans än kodare (A4) och systemtestare (A9)"
+  S5: "Driftvakt (A11) och Förbättring (A12) är olika pooler"
+  S6: "Deploy (A8) är funktionell roll, inte beslutsfattande – separeras genom att köra exakta manifest"
+
+# OpenRouter-konfiguration (för etapp 1+)
+openrouter:
+  api_key_env_var: "OPENROUTER_API_KEY"
+  base_url: "https://openrouter.ai/api/v1"
+  retry:
+    max_attempts: 3
+    backoff_factor: 2  # Exponential backoff: 2s, 4s, 8s
+  rate_limit:
+    requests_per_minute: 60
+  cost_tracking: true
+
+# Loopar
+loops:
+  L1:
+    name: "Kodloop"
+    steps: [3]  # A4 → A5 → A4
+    max_rounds: 3
+    escalation: "Människa beslutar om konflikt kvarstår"
+
+  L2:
+    name: "Testloop"
+    steps: [3, 4, 5, 6, 7]  # Om test felar → tillbaka till kodning
+    max_rounds: 3
+    escalation: "G3-blockering om inte fixat efter 3 varv"
+
+  L3:
+    name: "Specloop"
+    steps: [0, 1]  # Om A1 vill ha förtydligande → tillbaka till specförfattare
+    max_rounds: 3
+    escalation: "G1-avslag om inte fixat efter 3 varv"

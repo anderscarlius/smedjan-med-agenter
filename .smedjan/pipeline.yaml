@@ -1,0 +1,251 @@
+# Smedjan Pipeline Configuration
+# Version: 0.1 (Etapp 0: Manuell körning, stub för framtida automatisering)
+# Datum: 2026-09-02
+
+# Steg-definition
+steps:
+  0:
+    name: "Intag"
+    agent: "A0"
+    trigger: "manual"  # Etapp 0: Manuellt
+    input: "Förslagsspec (markdown)"
+    output: "Strukturerad spec"
+    next_step: 1
+
+  1:
+    name: "Specgranskning"
+    agent: "A1"
+    trigger: "manual"  # Etapp 0: Manuellt
+    input: "Strukturerad spec från steg 0"
+    output: "Granskningsrapport"
+    gate: "G1"
+    next_step:
+      if_approved: 2
+      if_rejected: "archive"
+      if_remanded: 0  # L3-loop
+
+  2:
+    name: "Nedbrytning"
+    agents: ["A2", "A3"]
+    trigger: "manual"  # Etapp 0: Manuellt
+    input: "Godkänd spec (efter G1)"
+    output: "User stories"
+    gate: "G2"
+    next_step:
+      if_approved: 3
+      if_remanded: 2  # A2 bryter ner igen
+
+  3:
+    name: "Kodning"
+    agents: ["A4", "A5"]
+    trigger: "manual"  # Etapp 0: Manuellt, etapp 1: CI
+    input: "User story"
+    output: "Kod + PR"
+    loop: "L1"
+    requires_human_signature: true  # PR signeras av människa
+    next_step: 4
+
+  4:
+    name: "Enhetstester"
+    agent: "A6"
+    trigger: "ci"  # Etapp 1: CI
+    input: "Merged kod från steg 3"
+    output: "Utökade unit-tester + coverage"
+    success_criteria: "coverage >80%"
+    next_step:
+      if_pass: 5
+      if_fail: 3  # L2-loop
+
+  5:
+    name: "Integrationstester"
+    agent: "A7"
+    trigger: "ci"  # Etapp 1: CI
+    input: "Modul med unit-tester"
+    output: "Integrationstester + rapport"
+    success_criteria: "Alla tester gröna"
+    next_step:
+      if_pass: 6
+      if_fail: 3  # L2-loop
+
+  6:
+    name: "Testdeploy"
+    agent: "A8"
+    trigger: "ci"  # Etapp 1: CI
+    input: "Testad kod + deploy-manifest"
+    output: "Deploy till test-miljö"
+    environment: "test"
+    success_criteria: "Health checks pass"
+    next_step:
+      if_pass: 7
+      if_fail: 3  # L2-loop
+
+  7:
+    name: "Test av testdeploy"
+    agent: "A9"
+    trigger: "ci"  # Etapp 1: CI
+    input: "Deployed system (test-miljö)"
+    output: "Systemtestrapport"
+    success_criteria: "E2E-tester gröna"
+    next_step:
+      if_pass: 8
+      if_fail: 3  # L2-loop
+
+  8:
+    name: "Utfall/triage"
+    agent: "A10"
+    trigger: "ci"  # Etapp 1: CI
+    input: "Testrapporter från steg 4–7"
+    output: "Utfallsrapport"
+    gate: "G3"
+    next_step:
+      if_approved: 9
+      if_remanded: 3  # Fixa och testa igen
+
+  9:
+    name: "QA+verksamhetsverifiering"
+    agents: ["A7", "A8", "A9"]
+    trigger: "manual"  # Alltid manuell trigger för QA
+    input: "Godkänd funktionalitet (efter G3)"
+    output: "QA-rapport + verksamhetsverifiering"
+    environment: "qa"
+    gate: "G4"
+    next_step:
+      if_approved: 10
+      if_remanded: 9  # Fixa i QA
+
+  10:
+    name: "Prod-deploy"
+    agent: "A8"
+    trigger: "manual"  # Alltid manuell trigger för prod
+    input: "G4-godkänd funktionalitet + prod-manifest"
+    output: "Deploy till produktion"
+    environment: "prod"
+    requires_rollback_plan: true
+    next_step: 11
+
+  11:
+    name: "Övervakning"
+    agents: ["A11", "A12", "A13"]
+    trigger: "continuous"  # Kontinuerlig
+    input: "Produktion + loggar/metrics"
+    output:
+      A11: "Incidentrapporter"
+      A12: "Teknisk skuld-rapport"
+      A13: "Dokumentation"
+    next_step: null  # Kontinuerlig
+
+# Grindar
+gates:
+  G1:
+    name: "Specgodkännande"
+    decision_maker: "Produktägare eller systemarkitekt"
+    input: "Granskningsrapport från A1"
+    decisions: ["godkänn", "godkänn_med_villkor", "återremittera", "avslå"]
+    format: "Grindbeslut enligt mall"
+    requires_signature: true
+
+  G2:
+    name: "Storygodkännande"
+    decision_maker: "Produktägare"
+    input: "Stories från A2 + granskningsrapport från A3"
+    decisions: ["godkänn", "återremittera"]
+    format: "Grindbeslut enligt mall"
+    requires_signature: true
+
+  G3:
+    name: "Utfallsgodkännande"
+    decision_maker: "Teknisk ledare eller QA-ansvarig"
+    input: "Utfallsrapport från A10"
+    decisions: ["till_qa", "återremittera", "avslå"]
+    format: "Grindbeslut enligt mall"
+    requires_signature: true
+
+  G4:
+    name: "Produktionsgodkännande"
+    decision_maker: "Produktägare + verksamhetsrepresentant (båda krävs)"
+    input: "QA-rapport + verksamhetsverifiering"
+    decisions: ["godkänn_för_prod", "återremittera"]
+    format: "Grindbeslut enligt mall (dubbelsignerat)"
+    requires_signature: true
+    signatures_required: 2
+
+# Loopar
+loops:
+  L1:
+    name: "Kodloop"
+    steps: [3]
+    description: "A4 kodar → A5 granskar → tillbaka till A4 om problem"
+    max_rounds: 3
+    escalation: "Människa beslutar om konflikt kvarstår efter 3 varv"
+
+  L2:
+    name: "Testloop"
+    steps: [3, 4, 5, 6, 7]
+    description: "Om tester felar → tillbaka till kodning"
+    max_rounds: 3
+    escalation: "G3-blockering om inte fixat efter 3 varv"
+
+  L3:
+    name: "Specloop"
+    steps: [0, 1]
+    description: "Om A1 vill ha förtydligande → tillbaka till specförfattare"
+    max_rounds: 3
+    escalation: "G1-avslag om inte fixat efter 3 varv"
+
+# Etapper
+etapper:
+  0:
+    name: "Process + manuell körning"
+    period: "Vecka 36 (3–9 sep 2026)"
+    automation: "Ingen (manuellt i LLM-chatt)"
+    deliverables:
+      - "Processdokumentation"
+      - "Prompter för alla agenter"
+      - "Mallar"
+      - "Konfiguration (agents.yaml, dataklass.yaml, pipeline.yaml)"
+      - "EWS steg 0–2 manuellt körda"
+
+  1:
+    name: "GitHub Actions-orkestrering"
+    period: "Vecka 37–38"
+    automation: "Steg 0–3 automatiseras via GitHub Actions"
+    deliverables:
+      - "GitHub Actions workflow"
+      - "OpenRouter-klient (riktig)"
+      - "CI kör A4–A9"
+      - "Grindar (G1–G2) fortfarande manuella"
+
+  2:
+    name: "Temporal-orkestrering"
+    period: "Vecka 39–42"
+    automation: "Full orkestrering med Temporal"
+    deliverables:
+      - "Temporal workflows"
+      - "Loopar (L1–L3) automatiserade"
+      - "Portalen läser från Temporal state"
+
+# Öppna frågor
+open_questions:
+  - question: "GitHub Actions vs Temporal för etapp 1?"
+    status: "Rekommendation: GitHub Actions först, Temporal senare"
+    decision_required_by: "Etapp 1 start"
+
+  - question: "Tunn OpenRouter-klient vs ramverk?"
+    status: "Rekommendation: Tunn klient (färre beroenden)"
+    decision_required_by: "Etapp 1 start"
+
+  - question: "QA-miljöns ägande?"
+    status: "Öppen: IT-drift eller utvecklingsteam?"
+    decision_required_by: "Etapp 2"
+
+  - question: "Verksamhetsverifieringens formella status?"
+    status: "Öppen: Del av G4 eller rådgivande?"
+    decision_required_by: "Etapp 3"
+
+  - question: "MDR-gräns?"
+    status: "Öppen: Vilka komponenter kräver medicinteknisk dokumentation?"
+    decision_required_by: "Etapp 5"
+
+  - question: "Driftvaktens mandat?"
+    status: "Öppen: Hur mycket får A11 ändra autonomt?"
+    decision_required_by: "Etapp 3 (prod-deploy)"
