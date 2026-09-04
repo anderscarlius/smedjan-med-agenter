@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smedjan</title>
+<link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+<a href="#innehall" class="skip-link">Hoppa till innehåll</a>
+<div class="app">
+  <header class="topbar">
+    <div class="topbar-left">
+      <span class="ordmarke">Smedjan</span>
+      <a href="#/korningar" style="font-size:14px;line-height:20px;color:var(--teal)">Projekt: <span style="font-family:var(--mono)">ews</span></a>
+    </div>
+    <div class="topbar-right">
+      <a href="#/separation" class="chip chip-teal">klass 0</a>
+      <a href="#/installningar" class="chip chip-mock">MOCK — ingen nyckel, inga anrop</a>
+      <a href="#/kostnad" class="chip chip-mono">0 USD</a>
+      <span class="chip chip-mono">commit 659afb6</span>
+    </div>
+  </header>
+  <div role="note" class="mockremsa">MOCK — exempeldata ur Git. Inga modellanrop. Inga skrivningar. Läsläge.</div>
+  <div class="ram">
+    <nav class="sidnav" aria-label="Huvudnavigering" id="sidnav"></nav>
+    <main id="innehall" class="innehall" tabindex="-1"></main>
+  </div>
+  <footer class="sidfot">
+    <span>Smedjan · demo · projekt ews · dataklass 0 · steg 0–2 körda · commit 659afb6 · läsläge — portalen skriver inte till repot</span>
+    <a href="#/systemtillstand">Systemtillstånd (designreferens)</a>
+  </footer>
+</div>
+<script src="./mockdata.js"></script>
+<script src="./app.js"></script>
+</body>
+</html>
