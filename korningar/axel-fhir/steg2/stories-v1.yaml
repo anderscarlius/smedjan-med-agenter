@@ -8,18 +8,18 @@ data_class: 0
 schema_version: "1.0"
 ---
 
-# User Stories: EWS-001
+# User Stories: AX-001
 
-Följande stories skapades från spec EWS-001:
+Följande stories skapades från spec AX-001:
 
-- EWS-001.1: Hämta vitals från Philips-system
-- EWS-001.2: Beräkna EWS-score enligt NEWS2
-- EWS-001.3: Exponera API för att hämta senaste EWS
-- EWS-001.4: Lagra EWS i Datahubb
-- EWS-001.5: Autentisering OAuth2 mot Philips
+- AX-001.1: Hämta vitals från Philips-system
+- AX-001.2: Beräkna EWS-score enligt NEWS2
+- AX-001.3: Exponera API för att hämta senaste EWS
+- AX-001.4: Lagra EWS i Datahubb
+- AX-001.5: Autentisering OAuth2 mot Philips
 
 ## Beroenden
 
-- EWS-001.2 beror på EWS-001.1
-- EWS-001.3 beror på EWS-001.2, EWS-001.4
-- EWS-001.4 beror på EWS-001.2
+- AX-001.2 beror på AX-001.1
+- AX-001.3 beror på AX-001.2, AX-001.4
+- AX-001.4 beror på AX-001.2

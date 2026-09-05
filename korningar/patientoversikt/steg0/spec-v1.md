@@ -7,7 +7,7 @@ data_class: 0
 schema_version: "1.0"
 ---
 
-# EWS-001: Early Warning Score (EWS) från Philips
+# PO-001: Early Warning Score (EWS) från Philips
 
 **Version:** 1.0  
 **Dataklass:** 0 (syntetisk, etapp 0)  

@@ -8,7 +8,7 @@ data_class: 0
 schema_version: "1.0"
 ---
 
-# Granskningsrapport: EWS-001
+# Granskningsrapport: AX-001
 
 **Granskare:** A1 Specgranskare  
 **Datum:** 2026-09-08T11:00:00Z  
