@@ -64,6 +64,31 @@ Smedjan är en systematisk, agentbaserad utvecklingsprocess där **människan be
     └── process.md        # Processbeskrivning med principer och flöde
 ```
 
+## Snabbstart: Kör EWS-demo (UTAN API-nyckel)
+
+**Etapp 0 mock-backend** – inga nätverksanrop, inga nycklar, offline-körbart:
+
+```bash
+# Installera beroenden
+pip install -r requirements.txt
+
+# Kör EWS-demo (steg 0-2: Intag → Specgranskning → G1 → Nedbrytning)
+python -m orkestrering demo ews
+```
+
+**Resultat:** Artefakter skapas under `korningar/ews/`:
+- `steg0/spec-v1.md` + `.meta.json` (från A0)
+- `steg1/review-v1.md` + `.meta.json` (från A1)
+- `G1/beslut.md` + `.meta.json` (mock-godkännande)
+- `steg2/stories-v1.yaml` + individuella `story-*.md` (från A2)
+
+**Testar demo:**
+```bash
+pytest
+```
+
+Alla tester går gröna **offline**. Mock-backend är default. Ingen OpenRouter-nyckel krävs.
+
 ## Hur man kör en story manuellt (etapp 0)
 
 1. Öppna `backlog/INDEX.md` och välj en story
