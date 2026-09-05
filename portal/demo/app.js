@@ -4,7 +4,7 @@ var M = window.SMEDJAN;
 
 var NAV = [
   { etikett: 'PROCESS', rader: [{ namn: 'Översikt', rutt: '#/oversikt', vy: 'oversikt' }, { namn: 'Körningar', rutt: '#/korningar', vy: 'korningar' }] },
-  { etikett: 'KÖRNING', rader: [{ namn: 'Körningsdetalj', rutt: '#/korning/ews-2026-09-03T14-12-08Z?steg=0', vy: 'korning' }, { namn: 'Artefakter', rutt: '#/artefakt/korningar/ews/steg0/spec-v1.md', vy: 'artefakt' }, { namn: 'Stories', rutt: '#/stories', vy: 'stories' }] },
+  { etikett: 'KÖRNING', rader: [{ namn: 'Körningsdetalj', rutt: '#/korning/ews-2026-09-03T14-12-08Z?steg=0', vy: 'korning' }, { namn: 'Artefakter', rutt: '#/artefakt/korningar/ews/steg0/spec-v1.md', vy: 'artefakt' }, { namn: 'Stories', rutt: '#/stories', vy: 'stories' }, { namn: 'Intag (Word)', rutt: '#/intag', vy: 'intag' }] },
   { etikett: 'REGLER', rader: [{ namn: 'Agenter & pooler', rutt: '#/agenter', vy: 'agenter' }, { namn: 'Separation & dataklass', rutt: '#/separation', vy: 'separation' }] },
   { etikett: 'PROJEKT', rader: [{ namn: 'Kostnad & användning', rutt: '#/kostnad', vy: 'kostnad' }, { namn: 'Inställningar & datakällor', rutt: '#/installningar', vy: 'installningar' }, { namn: 'Hjälp & demo-guide', rutt: '#/hjalp', vy: 'hjalp' }] }
 ];
@@ -1435,6 +1435,50 @@ function etiketter() {
   });
 }
 
+/* ---------- intag-vy (Word-uppladdning) ---------- */
+
+function vyIntag(route) {
+  var mall = route.query.mall || 'forslagsspec';
+  
+  var out = '<h1 class="sidtitel">Intag (Word)</h1>';
+  out += '<p class="dek">Ladda upp en ifylld förslagsspec (.docx), se vad som är ifyllt och vad som saknas, och exportera tillbaka till Word.</p>';
+  
+  out += '<div style="border:1px solid var(--sand-mork);border-radius:6px;background:var(--sand-ljus);padding:16px;margin:16px 0">';
+  out += '<p style="margin:0;font-size:14px;line-height:20px;color:var(--blick)">Filen stannar i din webbläsare — laddas inte upp till server i demot.</p>';
+  out += '</div>';
+  
+  out += '<hr class="avdelare">';
+  
+  // Uppladdningsområde
+  out += '<section id="intag-uppladdning" style="margin-bottom:32px">';
+  out += '<h2 class="sekrubrik">1. Ladda upp förslagsspec (.docx)</h2>';
+  out += '<div id="intag-drop-zone" style="border:2px dashed var(--linje);border-radius:6px;padding:40px;text-align:center;cursor:pointer;background:var(--yta-2)" tabindex="0" role="button" aria-label="Ladda upp Word-fil">';
+  out += '<p style="margin:0 0 12px;font-size:15px;color:var(--brod)">Dra och släpp en .docx-fil här eller klicka för att välja fil</p>';
+  out += '<input type="file" id="intag-file-input" accept=".docx" style="display:none">';
+  out += '<button class="knapp knapp-sekundar" onclick="document.getElementById(\'intag-file-input\').click()">Välj fil</button>';
+  out += '</div>';
+  out += '<div id="intag-fil-info" style="margin-top:16px;display:none">';
+  out += '<p style="margin:0;font-size:14px;color:var(--blick)"><strong>Fil:</strong> <span id="intag-fil-namn"></span> (<span id="intag-fil-storlek"></span>)</p>';
+  out += '</div>';
+  out += '</section>';
+  
+  // Valideringsresultat (visas efter uppladdning)
+  out += '<section id="intag-resultat" style="display:none">';
+  out += '<h2 class="sekrubrik">2. Validering mot mall</h2>';
+  out += '<div id="intag-sammanfattning" style="border:1px solid var(--linje);border-radius:6px;padding:16px;margin-bottom:24px"></div>';
+  out += '<div id="intag-sektioner"></div>';
+  out += '</section>';
+  
+  // Export (visas när uppladdning gjorts)
+  out += '<section id="intag-export" style="display:none;margin-top:32px">';
+  out += '<hr class="avdelare">';
+  out += '<h2 class="sekrubrik">3. Exportera till Word</h2>';
+  out += '<button class="knapp knapp-primar" id="intag-export-btn">Ladda ner .docx</button>';
+  out += '</section>';
+  
+  return out;
+}
+
 var lastVy = null, lastKorningRest = null;
 
 function render() {
@@ -1449,6 +1493,7 @@ function render() {
     case 'artefakt': html = vyArtefakt(route); break;
     case 'grind': html = vyGrind(route); break;
     case 'stories': html = vyStories(route); break;
+    case 'intag': html = vyIntag(route); break;
     case 'agenter': html = vyAgenter(route); break;
     case 'separation': html = vySeparation(route); break;
     case 'kostnad': html = vyKostnad(route); break;
@@ -1499,6 +1544,323 @@ function wireEvents(route) {
   if (drawerEl && !(route.vy === 'korning' && route.query.modal === '1')) {
     installFocusTrap(drawerEl);
   }
+  
+  // Intag-vy event handlers
+  if (route.vy === 'intag') {
+    wireIntagEvents();
+  }
+}
+
+// Hjälpfunktioner för intag
+var intagState = { parsedSections: {}, formData: {} };
+
+function wireIntagEvents() {
+  var fileInput = document.getElementById('intag-file-input');
+  var dropZone = document.getElementById('intag-drop-zone');
+  var exportBtn = document.getElementById('intag-export-btn');
+  
+  if (!fileInput || !dropZone) return;
+  
+  // File input change
+  fileInput.addEventListener('change', function(e) {
+    if (e.target.files.length > 0) {
+      handleIntagFile(e.target.files[0]);
+    }
+  });
+  
+  // Drop zone click
+  dropZone.addEventListener('click', function() {
+    fileInput.click();
+  });
+  
+  // Drag and drop
+  dropZone.addEventListener('dragover', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    dropZone.style.borderColor = 'var(--teal)';
+    dropZone.style.background = 'var(--yta-2)';
+  });
+  
+  dropZone.addEventListener('dragleave', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    dropZone.style.borderColor = 'var(--linje)';
+    dropZone.style.background = 'var(--yta-2)';
+  });
+  
+  dropZone.addEventListener('drop', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    dropZone.style.borderColor = 'var(--linje)';
+    dropZone.style.background = 'var(--yta-2)';
+    
+    if (e.dataTransfer.files.length > 0) {
+      var file = e.dataTransfer.files[0];
+      if (file.name.endsWith('.docx')) {
+        handleIntagFile(file);
+      } else {
+        alert('Välj en .docx-fil');
+      }
+    }
+  });
+  
+  // Keyboard support for drop zone
+  dropZone.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      fileInput.click();
+    }
+  });
+  
+  // Export button
+  if (exportBtn) {
+    exportBtn.addEventListener('click', function() {
+      exportIntagDocx();
+    });
+  }
+}
+
+function handleIntagFile(file) {
+  var filInfo = document.getElementById('intag-fil-info');
+  var filNamn = document.getElementById('intag-fil-namn');
+  var filStorlek = document.getElementById('intag-fil-storlek');
+  
+  filNamn.textContent = file.name;
+  filStorlek.textContent = formatBytes(file.size);
+  filInfo.style.display = 'block';
+  
+  // Läs och parsa filen
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    parseIntagDocx(e.target.result);
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function formatBytes(bytes) {
+  if (bytes === 0) return '0 B';
+  var k = 1024;
+  var sizes = ['B', 'KB', 'MB'];
+  var i = Math.floor(Math.log(bytes) / Math.log(k));
+  return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+}
+
+function parseIntagDocx(arrayBuffer) {
+  if (typeof mammoth === 'undefined') {
+    alert('Mammoth-biblioteket är inte laddat. Kontrollera att vendor-filerna är inkluderade.');
+    return;
+  }
+  
+  mammoth.convertToHtml({ arrayBuffer: arrayBuffer })
+    .then(function(result) {
+      var html = result.value;
+      extractSections(html);
+    })
+    .catch(function(err) {
+      console.error('Fel vid parsing av docx:', err);
+      alert('Kunde inte läsa Word-filen. Kontrollera att filen är en giltig .docx-fil.');
+    });
+}
+
+function extractSections(html) {
+  var obligatoriska = ['Titel', 'Beskrivning', 'Användarnytta', 'Funktionella krav', 'Dataklass', 'Sekretessbedömning'];
+  var valfria = ['Tekniska begränsningar', 'Öppna frågor'];
+  var allaSektioner = obligatoriska.concat(valfria);
+  
+  // Parsa HTML och extrahera sektioner baserat på Heading 1 eller starka rubriker
+  var parser = new DOMParser();
+  var doc = parser.parseFromString(html, 'text/html');
+  
+  var sections = {};
+  var currentSection = null;
+  var currentContent = [];
+  
+  // Gå igenom alla element
+  var elements = doc.body.querySelectorAll('*');
+  elements.forEach(function(el) {
+    var tagName = el.tagName.toLowerCase();
+    var text = el.textContent.trim();
+    
+    // Kolla om det är en rubrik
+    if ((tagName === 'h1' || tagName === 'h2' || (tagName === 'p' && el.querySelector('strong'))) && text) {
+      // Spara föregående sektion
+      if (currentSection) {
+        sections[currentSection] = currentContent.join('\n').trim();
+      }
+      
+      // Hitta matchande sektion
+      var matched = null;
+      for (var i = 0; i < allaSektioner.length; i++) {
+        if (text.toLowerCase().indexOf(allaSektioner[i].toLowerCase()) !== -1) {
+          matched = allaSektioner[i];
+          break;
+        }
+      }
+      
+      if (matched) {
+        currentSection = matched;
+        currentContent = [];
+      } else {
+        currentSection = null;
+      }
+    } else if (currentSection && text && tagName !== 'h1' && tagName !== 'h2') {
+      // Lägg till innehåll till nuvarande sektion
+      currentContent.push(text);
+    }
+  });
+  
+  // Spara sista sektionen
+  if (currentSection) {
+    sections[currentSection] = currentContent.join('\n').trim();
+  }
+  
+  intagState.parsedSections = sections;
+  intagState.formData = Object.assign({}, sections);
+  
+  // Visa resultat
+  displayIntagResults(sections, obligatoriska, valfria);
+}
+
+function displayIntagResults(sections, obligatoriska, valfria) {
+  var resultat = document.getElementById('intag-resultat');
+  var sammanfattning = document.getElementById('intag-sammanfattning');
+  var sektionerDiv = document.getElementById('intag-sektioner');
+  var exportSection = document.getElementById('intag-export');
+  
+  resultat.style.display = 'block';
+  exportSection.style.display = 'block';
+  
+  // Räkna ifyllda obligatoriska
+  var ifyllda = 0;
+  obligatoriska.forEach(function(sek) {
+    if (sections[sek] && isSectionFilled(sections[sek])) {
+      ifyllda++;
+    }
+  });
+  
+  var sammantag = '<p style="margin:0;font-size:17px;font-weight:600;color:var(--blick)"><strong>' + ifyllda + '</strong> av <strong>' + obligatoriska.length + '</strong> obligatoriska sektioner ifyllda</p>';
+  if (ifyllda < obligatoriska.length) {
+    sammantag += '<p style="margin:8px 0 0;font-size:14px;color:var(--rodbrun)">Saknas innan intag kan gå till A0:</p>';
+    sammantag += '<ul style="margin:4px 0 0;padding-left:24px;font-size:14px;color:var(--rodbrun)">';
+    obligatoriska.forEach(function(sek) {
+      if (!sections[sek] || !isSectionFilled(sections[sek])) {
+        sammantag += '<li>' + esc(sek) + '</li>';
+      }
+    });
+    sammantag += '</ul>';
+  } else {
+    sammantag += '<p style="margin:8px 0 0;font-size:14px;color:var(--teal)">✓ Alla obligatoriska sektioner ifyllda</p>';
+  }
+  sammanfattning.innerHTML = sammantag;
+  
+  // Lista sektioner
+  var sektionHtml = '';
+  var allaSektioner = obligatoriska.concat(valfria);
+  allaSektioner.forEach(function(sek) {
+    var content = sections[sek] || '';
+    var status = getStatus(content, obligatoriska.indexOf(sek) !== -1);
+    var statusText = status === 'ifylld' ? 'Ifylld' : status === 'tunn' ? 'Tunn' : 'Saknas';
+    var statusFarg = status === 'ifylld' ? 'var(--teal)' : status === 'tunn' ? 'var(--sand-mork)' : 'var(--rodbrun)';
+    
+    sektionHtml += '<div style="border:1px solid var(--linje);border-left:3px solid ' + statusFarg + ';border-radius:6px;padding:16px;margin-bottom:16px">';
+    sektionHtml += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px">';
+    sektionHtml += '<h3 style="margin:0;font-family:var(--serif);font-size:17px;color:var(--blick)">' + esc(sek) + '</h3>';
+    sektionHtml += '<span style="font-size:13px;font-weight:600;color:' + statusFarg + '">' + statusText + '</span>';
+    sektionHtml += '</div>';
+    
+    if (status === 'ifylld') {
+      sektionHtml += '<p style="margin:0;font-size:14px;color:var(--brod);white-space:pre-wrap">' + esc(content.substring(0, 200)) + (content.length > 200 ? '...' : '') + '</p>';
+    }
+    
+    // Redigeringsfält
+    sektionHtml += '<div style="margin-top:12px">';
+    sektionHtml += '<label for="intag-field-' + sek + '" style="display:block;font-size:13px;font-weight:600;color:var(--brod);margin-bottom:4px">Redigera innehåll:</label>';
+    sektionHtml += '<textarea id="intag-field-' + sek + '" data-section="' + esc(sek) + '" style="width:100%;min-height:80px;padding:8px;border:1px solid var(--linje);border-radius:3px;font-family:var(--sans);font-size:14px;color:var(--blick)" placeholder="Fyll i ' + esc(sek.toLowerCase()) + '...">' + esc(content) + '</textarea>';
+    sektionHtml += '</div>';
+    sektionHtml += '</div>';
+  });
+  
+  sektionerDiv.innerHTML = sektionHtml;
+  
+  // Lägg till event listeners för textareas
+  document.querySelectorAll('textarea[data-section]').forEach(function(textarea) {
+    textarea.addEventListener('input', function() {
+      var section = textarea.getAttribute('data-section');
+      intagState.formData[section] = textarea.value;
+      
+      // Uppdatera sammanfattning
+      setTimeout(function() {
+        updateSummary(obligatoriska);
+      }, 300);
+    });
+  });
+}
+
+function updateSummary(obligatoriska) {
+  var ifyllda = 0;
+  obligatoriska.forEach(function(sek) {
+    if (intagState.formData[sek] && isSectionFilled(intagState.formData[sek])) {
+      ifyllda++;
+    }
+  });
+  
+  var sammanfattning = document.getElementById('intag-sammanfattning');
+  var sammantag = '<p style="margin:0;font-size:17px;font-weight:600;color:var(--blick)"><strong>' + ifyllda + '</strong> av <strong>' + obligatoriska.length + '</strong> obligatoriska sektioner ifyllda</p>';
+  if (ifyllda < obligatoriska.length) {
+    sammantag += '<p style="margin:8px 0 0;font-size:14px;color:var(--rodbrun)">Saknas innan intag kan gå till A0:</p>';
+    sammantag += '<ul style="margin:4px 0 0;padding-left:24px;font-size:14px;color:var(--rodbrun)">';
+    obligatoriska.forEach(function(sek) {
+      if (!intagState.formData[sek] || !isSectionFilled(intagState.formData[sek])) {
+        sammantag += '<li>' + esc(sek) + '</li>';
+      }
+    });
+    sammantag += '</ul>';
+  } else {
+    sammantag += '<p style="margin:8px 0 0;font-size:14px;color:var(--teal)">✓ Alla obligatoriska sektioner ifyllda</p>';
+  }
+  sammanfattning.innerHTML = sammantag;
+}
+
+function isSectionFilled(text) {
+  if (!text || text.trim().length < 10) return false;
+  var lower = text.toLowerCase();
+  if (lower.indexOf('[') !== -1 || lower.indexOf('<') !== -1 && lower.indexOf('>') !== -1) return false;
+  return true;
+}
+
+function getStatus(content, isObligatorisk) {
+  if (!content || content.trim().length === 0) return 'saknas';
+  if (!isSectionFilled(content)) return 'tunn';
+  return 'ifylld';
+}
+
+function exportIntagDocx() {
+  if (typeof PizZip === 'undefined' || typeof DocxBuilder === 'undefined') {
+    alert('Docx-export-biblioteken är inte laddade.');
+    return;
+  }
+  
+  var obligatoriska = ['Titel', 'Beskrivning', 'Användarnytta', 'Funktionelle krav', 'Dataklass', 'Sekretessbedömning'];
+  var valfria = ['Tekniska begränsningar', 'Öppna frågor'];
+  var allaSektioner = obligatoriska.concat(valfria);
+  
+  var sections = allaSektioner.map(function(sek) {
+    return {
+      title: sek,
+      content: intagState.formData[sek] || ''
+    };
+  });
+  
+  var blob = DocxBuilder.build(sections);
+  
+  // Ladda ner
+  var modulNamn = (intagState.formData['Titel'] || 'forslagsspec').replace(/[^a-zA-Z0-9åäöÅÄÖ]/g, '-').toLowerCase();
+  var filename = 'forslagsspec-' + modulNamn + '-ifylld.docx';
+  
+  var link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  link.click();
 }
 
 function handleFocusAfterRender(route) {
