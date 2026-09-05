@@ -260,6 +260,22 @@ openrouter:
   rate_limit:
     requests_per_minute: 60
   cost_tracking: true
+  
+  # Modellmappningar till OpenRouter model IDs
+  # Prioritet: kostnad och kvalitet för klass 0-1
+  models:
+    A:  # Kreativt arbete (intag, kodning)
+      default: "deepseek/deepseek-chat"  # DeepSeek V4 Flash - låg kostnad, hög kvalitet
+      fallback: "openai/gpt-5.6-terra"   # GPT-5.6 Terra om DeepSeek inte tillgänglig
+    B:  # Granskning och kritiskt tänkande
+      default: "google/gemini-flash-1.5-8b"  # Gemini Flash - snabb granskning
+      fallback: "qwen/qwen-2.5-72b-instruct"  # Qwen alternativ
+    C:  # Strukturerat arbete
+      default: "anthropic/claude-3-5-sonnet"  # Maverick-klass, balanserad
+      fallback: "google/gemini-pro-1.5"
+    D:  # Lokal - får ALDRIG gå till OpenRouter
+      default: null
+      fallback: null
 
 # Loopar
 loops:

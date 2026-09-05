@@ -2,13 +2,18 @@
 LLM-klient för Smedjan med mock-backend som default.
 """
 import json
+import logging
 import os
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
 from uuid import uuid4
 
+import httpx
 import yaml
+
+logger = logging.getLogger(__name__)
 
 
 class LlmClient:
@@ -46,8 +51,10 @@ class LlmClient:
         if backend == "openrouter" and not api_key:
             raise ValueError(
                 "OpenRouter-backend kräver API-nyckel. "
-                "Sätt SMEDJAN_LLM_API_KEY eller använd mock-backend (default)."
+                "Sätt OPENROUTER_API_KEY eller använd mock-backend (default)."
             )
+        
+        self.openrouter_config = self.agents_config.get("openrouter", {})
     
     def _load_agents_config(self) -> Dict[str, Any]:
         """Ladda agents.yaml."""
@@ -93,11 +100,19 @@ class LlmClient:
         pool = agent_info["pool"]
         pool_info = self.get_pool_info(pool)
         
-        # Pool D / klass 2: Blockera alltid extern backend
+        # Pool D: Blockera alltid extern backend
         if pool == "D" and self.backend != "mock":
             raise ValueError(
                 f"Pool D (Local) får ALDRIG gå mot extern backend. "
                 f"Agent {agent_id} är konfigurerad för pool D och måste köras lokalt."
+            )
+        
+        # Dataklass 2: Blockera alltid extern backend
+        if data_class == 2 and self.backend != "mock":
+            raise ValueError(
+                f"Dataklass 2 (känslig data) får ALDRIG routas till extern backend. "
+                f"Data class: {data_class}, Backend: {self.backend}. "
+                f"Använd mock-backend eller lokal modell."
             )
         
         # Välj backend
@@ -156,8 +171,169 @@ class LlmClient:
         prompt: str,
         input_data: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """OpenRouter-backend (ej implementerad i etapp 0)."""
-        raise NotImplementedError(
-            "OpenRouter-integration kommer i etapp 1. "
-            "Använd mock-backend (default) för etapp 0."
-        )
+        """OpenRouter-backend: Anropa OpenRouter API."""
+        pool = agent_info["pool"]
+        
+        # Hämta model från OpenRouter-config
+        models_config = self.openrouter_config.get("models", {})
+        pool_models = models_config.get(pool, {})
+        model_id = pool_models.get("default")
+        fallback_model_id = pool_models.get("fallback")
+        
+        if not model_id:
+            logger.warning(f"Ingen OpenRouter-modell konfigurerad för pool {pool}, fallback till mock")
+            return self._call_mock(agent_id, agent_info, pool_info, input_data, 0)
+        
+        base_url = self.openrouter_config.get("base_url", "https://openrouter.ai/api/v1")
+        retry_config = self.openrouter_config.get("retry", {})
+        max_attempts = retry_config.get("max_attempts", 3)
+        backoff_factor = retry_config.get("backoff_factor", 2)
+        
+        # Försök primär modell, sedan fallback
+        for model_attempt in [model_id, fallback_model_id]:
+            if not model_attempt:
+                continue
+                
+            try:
+                return self._call_openrouter_with_retry(
+                    base_url=base_url,
+                    model=model_attempt,
+                    prompt=prompt,
+                    input_data=input_data,
+                    agent_id=agent_id,
+                    pool=pool,
+                    family=pool_info["provider"],
+                    max_attempts=max_attempts,
+                    backoff_factor=backoff_factor
+                )
+            except Exception as e:
+                logger.warning(f"OpenRouter-anrop misslyckades för modell {model_attempt}: {e}")
+                if model_attempt == fallback_model_id:
+                    logger.error(f"Även fallback-modell misslyckades, använder mock")
+                    return self._call_mock_with_error_flag(agent_id, agent_info, pool_info, input_data, str(e))
+        
+        # Om vi når hit, inget fungerade
+        return self._call_mock_with_error_flag(agent_id, agent_info, pool_info, input_data, "Ingen modell tillgänglig")
+    
+    def _call_openrouter_with_retry(
+        self,
+        base_url: str,
+        model: str,
+        prompt: str,
+        input_data: Dict[str, Any],
+        agent_id: str,
+        pool: str,
+        family: str,
+        max_attempts: int,
+        backoff_factor: int
+    ) -> Dict[str, Any]:
+        """Anropa OpenRouter med retry-logik."""
+        endpoint = f"{base_url}/chat/completions"
+        
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://github.com/anderscarlius/smedjan-med-agenter",
+            "X-Title": "Smedjan"
+        }
+        
+        # Bygg meddelanden
+        messages = [
+            {"role": "system", "content": prompt},
+            {"role": "user", "content": json.dumps(input_data, ensure_ascii=False)}
+        ]
+        
+        payload = {
+            "model": model,
+            "messages": messages
+        }
+        
+        last_error = None
+        
+        for attempt in range(max_attempts):
+            try:
+                with httpx.Client(timeout=60.0) as client:
+                    response = client.post(endpoint, json=payload, headers=headers)
+                    response.raise_for_status()
+                    
+                    result = response.json()
+                    
+                    # Extrahera output
+                    output_content = result["choices"][0]["message"]["content"]
+                    
+                    # Extrahera metadata
+                    usage = result.get("usage", {})
+                    total_tokens = usage.get("total_tokens", 0)
+                    
+                    # Beräkna kostnad (approximativt)
+                    cost_usd = self._estimate_cost(model, total_tokens)
+                    
+                    metadata = {
+                        "agent_id": agent_id,
+                        "pool": pool,
+                        "family": family,
+                        "model": model,
+                        "tokens": total_tokens,
+                        "cost_usd": cost_usd,
+                        "is_stub": False,
+                        "backend": "openrouter",
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "data_class": 0
+                    }
+                    
+                    logger.info(f"OpenRouter-anrop lyckades: {agent_id} (modell: {model}, tokens: {total_tokens}, kostnad: ${cost_usd:.4f})")
+                    
+                    return {
+                        "output": {"content": output_content},
+                        "metadata": metadata
+                    }
+            
+            except httpx.HTTPStatusError as e:
+                last_error = e
+                if e.response.status_code == 429:
+                    logger.warning(f"Rate limit (429), försök {attempt + 1}/{max_attempts}")
+                elif e.response.status_code >= 500:
+                    logger.warning(f"Server-fel ({e.response.status_code}), försök {attempt + 1}/{max_attempts}")
+                else:
+                    raise
+            
+            except (httpx.RequestError, httpx.TimeoutException) as e:
+                last_error = e
+                logger.warning(f"Nätverksfel: {e}, försök {attempt + 1}/{max_attempts}")
+            
+            if attempt < max_attempts - 1:
+                sleep_time = backoff_factor ** attempt
+                logger.info(f"Väntar {sleep_time}s innan retry...")
+                time.sleep(sleep_time)
+        
+        raise Exception(f"OpenRouter-anrop misslyckades efter {max_attempts} försök: {last_error}")
+    
+    def _estimate_cost(self, model: str, tokens: int) -> float:
+        """Uppskatta kostnad baserat på modell och tokens."""
+        # Approximativa priser per 1M tokens (input+output genomsnitt)
+        cost_per_1m = {
+            "deepseek/deepseek-chat": 0.14,
+            "openai/gpt-5.6-terra": 2.0,
+            "google/gemini-flash-1.5-8b": 0.075,
+            "qwen/qwen-2.5-72b-instruct": 0.35,
+            "anthropic/claude-3-5-sonnet": 3.0,
+            "google/gemini-pro-1.5": 1.25
+        }
+        
+        price = cost_per_1m.get(model, 1.0)
+        return (tokens / 1_000_000) * price
+    
+    def _call_mock_with_error_flag(
+        self,
+        agent_id: str,
+        agent_info: Dict[str, Any],
+        pool_info: Dict[str, Any],
+        input_data: Dict[str, Any],
+        error_msg: str
+    ) -> Dict[str, Any]:
+        """Mock-fallback med felindikation."""
+        result = self._call_mock(agent_id, agent_info, pool_info, input_data, 0)
+        result["metadata"]["fallback_reason"] = error_msg
+        result["metadata"]["is_stub"] = True
+        logger.warning(f"Fallback till mock för {agent_id}: {error_msg}")
+        return result

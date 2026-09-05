@@ -40,10 +40,22 @@ def main():
 
 def run_ews_demo():
     """Kör EWS-demo."""
+    import os
+    
     workspace_root = Path.cwd()
     
-    # Skapa LLM-klient (mock-backend)
-    client = LlmClient(backend="mock")
+    # Automatisk backend-val: OpenRouter om nyckel finns, annars mock
+    api_key = os.getenv("OPENROUTER_API_KEY")
+    
+    if api_key:
+        print("🔑 OPENROUTER_API_KEY hittad, använder OpenRouter API")
+        backend = "openrouter"
+    else:
+        print("📦 Ingen OPENROUTER_API_KEY, använder mock-backend (offline)")
+        backend = "mock"
+    
+    # Skapa LLM-klient
+    client = LlmClient(backend=backend, api_key=api_key)
     
     # Skapa orchestrator
     orchestrator = PipelineOrchestrator(client, workspace_root)
