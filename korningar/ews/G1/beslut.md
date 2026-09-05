@@ -4,7 +4,11 @@ artifact_id: mock-g1-ews-001
 grind: G1
 decision: godkann
 created_by: Mock Demo (Etapp 0)
+<<<<<<< HEAD
 created_at: 2026-09-05T21:05:01.443257+00:00
+=======
+created_at: 2026-09-05T21:18:22.733877+00:00
+>>>>>>> d163183 (Implementera OpenRouter-adapter för Smedjan)
 input_refs: []
 data_class: 0
 schema_version: "1.0"
@@ -15,7 +19,11 @@ schema_version: "1.0"
 **Grind:** G1 (Specgodkännande)  
 **Beslut:** Godkänn  
 **Beslutsfattare:** Mock Demo (Etapp 0)  
+<<<<<<< HEAD
 **Datum:** 2026-09-05T21:05:01.443257+00:00  
+=======
+**Datum:** 2026-09-05T21:18:22.733877+00:00  
+>>>>>>> d163183 (Implementera OpenRouter-adapter för Smedjan)
 **Signatur:** N/A (Mock)
 
 ## Motivering

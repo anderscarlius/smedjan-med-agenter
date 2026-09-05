@@ -5,6 +5,8 @@ import json
 from pathlib import Path
 
 import pytest
+import respx
+from httpx import Response
 
 from orkestrering.llm_client import LlmClient
 
@@ -52,6 +54,15 @@ def test_pool_d_blocks_external_backend(config_path):
     # A11 är i pool D (Local)
     with pytest.raises(ValueError, match="Pool D.*får ALDRIG gå mot extern backend"):
         client.call_agent("A11", "test", {}, data_class=0)
+
+
+def test_data_class_2_blocks_external_backend(config_path):
+    """Testa att dataklass 2 blockeras mot extern backend."""
+    client = LlmClient(config_path=config_path, backend="openrouter", api_key="test-key")
+    
+    # Dataklass 2 får aldrig gå till extern backend
+    with pytest.raises(ValueError, match="Dataklass 2.*får ALDRIG routas till extern backend"):
+        client.call_agent("A0", "test", {}, data_class=2)
 
 
 def test_openrouter_requires_api_key(config_path):
@@ -103,3 +114,95 @@ def test_agent_pool_assignment(mock_client):
     assert a0_info["pool"] == "A"
     assert a1_info["pool"] == "B"
     assert a2_info["pool"] == "C"
+
+
+@respx.mock
+def test_openrouter_successful_call(config_path):
+    """Testa lyckad OpenRouter API-anrop."""
+    # Mock OpenRouter API response
+    respx.post("https://openrouter.ai/api/v1/chat/completions").mock(
+        return_value=Response(
+            200,
+            json={
+                "id": "test-id",
+                "choices": [
+                    {
+                        "message": {
+                            "content": "Test response från OpenRouter"
+                        }
+                    }
+                ],
+                "usage": {
+                    "total_tokens": 150
+                }
+            }
+        )
+    )
+    
+    client = LlmClient(config_path=config_path, backend="openrouter", api_key="test-key")
+    result = client.call_agent("A0", "Test prompt", {"test": "data"}, data_class=0)
+    
+    assert result["metadata"]["is_stub"] is False
+    assert result["metadata"]["backend"] == "openrouter"
+    assert result["metadata"]["tokens"] == 150
+    assert result["metadata"]["cost_usd"] > 0
+    assert "Test response från OpenRouter" in result["output"]["content"]
+
+
+@respx.mock
+def test_openrouter_retry_on_rate_limit(config_path):
+    """Testa retry vid rate limit (429)."""
+    # Första anropet: 429, andra: success
+    respx.post("https://openrouter.ai/api/v1/chat/completions").mock(
+        side_effect=[
+            Response(429, json={"error": "Rate limit"}),
+            Response(
+                200,
+                json={
+                    "choices": [{"message": {"content": "Success efter retry"}}],
+                    "usage": {"total_tokens": 100}
+                }
+            )
+        ]
+    )
+    
+    client = LlmClient(config_path=config_path, backend="openrouter", api_key="test-key")
+    result = client.call_agent("A0", "Test", {"test": "data"}, data_class=0)
+    
+    assert result["metadata"]["is_stub"] is False
+    assert "Success efter retry" in result["output"]["content"]
+
+
+@respx.mock
+def test_openrouter_fallback_to_mock_on_failure(config_path):
+    """Testa fallback till mock vid API-fel."""
+    # Alla försök misslyckas
+    respx.post("https://openrouter.ai/api/v1/chat/completions").mock(
+        side_effect=[
+            Response(500, json={"error": "Server error"}),
+            Response(500, json={"error": "Server error"}),
+            Response(500, json={"error": "Server error"})
+        ]
+    )
+    
+    client = LlmClient(config_path=config_path, backend="openrouter", api_key="test-key")
+    result = client.call_agent("A0", "Test", {"test": "data"}, data_class=0)
+    
+    # Ska fallback till mock
+    assert result["metadata"]["is_stub"] is True
+    assert "fallback_reason" in result["metadata"]
+
+
+def test_openrouter_model_mapping(config_path):
+    """Testa att modellmappningar finns för alla pooler utom D."""
+    client = LlmClient(config_path=config_path, backend="mock")
+    
+    models_config = client.openrouter_config.get("models", {})
+    
+    # Pool A, B, C ska ha modeller
+    assert models_config.get("A", {}).get("default") is not None
+    assert models_config.get("B", {}).get("default") is not None
+    assert models_config.get("C", {}).get("default") is not None
+    
+    # Pool D ska vara None (lokal)
+    assert models_config.get("D", {}).get("default") is None

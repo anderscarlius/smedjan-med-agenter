@@ -64,9 +64,13 @@ Smedjan är en systematisk, agentbaserad utvecklingsprocess där **människan be
     └── process.md        # Processbeskrivning med principer och flöde
 ```
 
-## Snabbstart: Kör EWS-demo (UTAN API-nyckel)
+## Snabbstart: Kör EWS-demo
 
-**Etapp 0 mock-backend** – inga nätverksanrop, inga nycklar, offline-körbart:
+**Etapp 0 med valbara backends:**
+
+### Alternativ 1: Mock-backend (offline, inga kostnader)
+
+Ingen API-nyckel krävs. Använder förinspelad fixture-data.
 
 ```bash
 # Installera beroenden
@@ -76,18 +80,36 @@ pip install -r requirements.txt
 python -m orkestrering demo ews
 ```
 
+### Alternativ 2: OpenRouter (riktiga LLM-anrop)
+
+Med API-nyckel används riktig LLM via OpenRouter.
+
+```bash
+# Skaffa nyckel från https://openrouter.ai/keys
+export OPENROUTER_API_KEY=sk-or-v1-...
+
+# Kör med OpenRouter
+python -m orkestrering demo ews
+```
+
+**Kostnad:** ~$0.01 per EWS-demo (ca 5000 tokens). Se `orkestrering/README.md` för detaljer.
+
 **Resultat:** Artefakter skapas under `korningar/ews/`:
 - `steg0/spec-v1.md` + `.meta.json` (från A0)
 - `steg1/review-v1.md` + `.meta.json` (från A1)
 - `G1/beslut.md` + `.meta.json` (mock-godkännande)
 - `steg2/stories-v1.yaml` + individuella `story-*.md` (från A2)
 
+**Metadata (`.meta.json`):**
+- Mock: `is_stub: true`, `tokens: 0`, `cost_usd: 0.0`
+- OpenRouter: `is_stub: false`, riktiga tokens/cost
+
 **Testar demo:**
 ```bash
 pytest
 ```
 
-Alla tester går gröna **offline**. Mock-backend är default. Ingen OpenRouter-nyckel krävs.
+Alla tester går gröna **offline**. OpenRouter-tester använder mocked HTTP (ingen riktig nyckel i CI).
 
 ## Hur man kör en story manuellt (etapp 0)
 
