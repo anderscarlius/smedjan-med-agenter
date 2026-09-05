@@ -2,6 +2,13 @@
 'use strict';
 var M = window.SMEDJAN;
 
+// Dataläge: null = ej laddad, 'loading' = laddar, 'loaded' = data finns, 'empty' = ingen data
+var dataState = {
+  status: null,
+  korning: null,
+  error: null
+};
+
 var NAV = [
   { etikett: 'PROCESS', rader: [{ namn: 'Översikt', rutt: '#/oversikt', vy: 'oversikt' }, { namn: 'Körningar', rutt: '#/korningar', vy: 'korningar' }] },
   { etikett: 'KÖRNING', rader: [{ namn: 'Körningsdetalj', rutt: '#/korning/ews-2026-09-03T14-12-08Z?steg=0', vy: 'korning' }, { namn: 'Artefakter', rutt: '#/artefakt/korningar/ews/steg0/spec-v1.md', vy: 'artefakt' }, { namn: 'Stories', rutt: '#/stories', vy: 'stories' }, { namn: 'Intag (Word)', rutt: '#/intag', vy: 'intag' }] },
@@ -1487,6 +1494,26 @@ function render() {
 
   var main = document.getElementById('innehall');
   var html;
+  
+  // Visa tomt läge om ingen körning laddats
+  if (dataState.status === 'empty' && route.vy !== 'hjalp' && route.vy !== 'intag') {
+    html = tomtLage(
+      'Ingen körning hittades',
+      'Portal-data saknas. Kör CLI-kommandot för att generera körningsdata:',
+      'python -m orkestrering demo ews',
+      '<a href="#/hjalp" class="knapp">Hjälp & guide</a>'
+    );
+    main.innerHTML = html;
+    return;
+  }
+  
+  // Visa laddningsläge
+  if (dataState.status === 'loading') {
+    html = '<div class="tomtlage"><p role="status" style="font-size:15px;color:var(--brod)">Laddar körningsdata...</p></div>';
+    main.innerHTML = html;
+    return;
+  }
+  
   switch (route.vy) {
     case 'oversikt': html = vyOversikt(route); break;
     case 'korning': html = vyKorningsdetalj(route); break;
@@ -1899,5 +1926,47 @@ window.addEventListener('hashchange', function (e) {
   }
 });
 
-render();
+// Ladda korning.json vid start
+function loadKorningData() {
+  dataState.status = 'loading';
+  
+  fetch('data/korning.json')
+    .then(function(response) {
+      if (!response.ok) {
+        throw new Error('Ingen korning.json hittades');
+      }
+      return response.json();
+    })
+    .then(function(data) {
+      dataState.status = 'loaded';
+      dataState.korning = data;
+      
+      // Uppdatera MOCK_KORNINGAR med den laddade körningen
+      if (M && M.MOCK_KORNINGAR) {
+        // Lägg till eller ersätt i listan
+        var index = M.MOCK_KORNINGAR.findIndex(function(k) { return k.korning_id === data.korning_id; });
+        if (index >= 0) {
+          M.MOCK_KORNINGAR[index] = data;
+        } else {
+          M.MOCK_KORNINGAR.unshift(data);
+        }
+        
+        // Uppdatera HUVUDKORNING
+        if (typeof HUVUDKORNING !== 'undefined') {
+          window.HUVUDKORNING = data.korning_id;
+        }
+      }
+      
+      render();
+    })
+    .catch(function(error) {
+      console.warn('Kunde inte ladda korning.json:', error.message);
+      dataState.status = 'empty';
+      dataState.error = error.message;
+      render();
+    });
+}
+
+// Starta laddning
+loadKorningData();
 })();
