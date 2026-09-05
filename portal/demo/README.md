@@ -54,6 +54,32 @@ docker run --rm -p 8080:80 \
 - EWS klass 0, steg 0–2, mockad motor
 - Klickbar processbild med «Du är här» på G2
 - Stories, separation, kostnad 0 USD
+- **Intag (Word)**: Uppladdning, validering och export av förslagsspec .docx-filer
+
+### Intag-vy (`#/intag`)
+
+Intag-vyn gör det möjligt att:
+1. **Ladda upp** en ifylld förslagsspec (.docx) från lokal disk
+2. **Validera** innehållet mot mallens obligatoriska sektioner (Titel, Beskrivning, Användarnytta, Funktionelle krav, Dataklass, Sekretessbedömning)
+3. **Redigera** saknade eller tunna sektioner direkt i webbläsaren
+4. **Exportera** den kompletterade specen tillbaka till en .docx-fil
+
+**Tekniskt**
+- Parsing: `mammoth.js` (vendor) — läser .docx till HTML i webbläsaren
+- Export: `pizzip.js` + egen OOXML-byggare (vendor) — skapar .docx utan server
+- All filbehandling sker lokalt; ingen uppladdning till server
+- Fungerar offline efter att portalen laddats första gången
+
+**Testfiler**
+- Tom mall: `mallar/word/01_forslagsspec.docx`
+- Ifyllt exempel: `exempel/intag/EWS_forslagsspec_exempel.docx`
+
+**Vendor-bibliotek** (`portal/demo/vendor/`)
+- `mammoth.browser.min.js` (v1.8.0) — docx→HTML-parser
+- `pizzip.min.js` (v3.1.7) — zip-hantering för OOXML
+- `docx-builder.js` — egen enkel OOXML-generering
+
+Alla vendor-filer är lokala och committade i repot; ingen CDN krävs.
 
 ## Inte i demot
 
