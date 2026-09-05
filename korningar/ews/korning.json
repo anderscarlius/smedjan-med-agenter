@@ -1,13 +1,13 @@
 {
   "schema_version": "1.0",
-  "korning_id": "ews-2026-09-05T21-05-01Z",
+  "korning_id": "ews-2026-09-05T21-33-10Z",
   "projekt": "ews",
   "titel": "EWS: Philips vitals → NEWS2 → Datahubb",
   "dataklass": 0,
   "backend": "mock",
   "ar_mock": true,
-  "startad": "2026-09-05T21:05:01.443950+00:00",
-  "avslutad": "2026-09-05T21:05:01.443950+00:00",
+  "startad": "2026-09-05T21:33:10.077601+00:00",
+  "avslutad": "2026-09-05T21:33:10.077601+00:00",
   "varaktighet": "~1 s",
   "status": "klar",
   "kostnad": {
@@ -22,7 +22,7 @@
       "nummer": 0,
       "namn": "Intag",
       "status": "klar",
-      "startad": "2026-09-05T21:05:01.442793+00:00",
+      "startad": "2026-09-05T21:33:10.076036+00:00",
       "varaktighet_ms": 12,
       "agent": {
         "id": "A0",
@@ -59,7 +59,7 @@
       "nummer": 1,
       "namn": "Specgranskning",
       "status": "klar",
-      "startad": "2026-09-05T21:05:01.443097+00:00",
+      "startad": "2026-09-05T21:33:10.076343+00:00",
       "varaktighet_ms": 9,
       "agent": {
         "id": "A1",
@@ -96,7 +96,7 @@
       "nummer": 2,
       "namn": "Nedbrytning",
       "status": "klar",
-      "startad": "2026-09-05T21:05:01.443435+00:00",
+      "startad": "2026-09-05T21:33:10.076705+00:00",
       "varaktighet_ms": 21,
       "agent": {
         "id": "A2",
@@ -150,7 +150,7 @@
       "status": "godkand_med_villkor",
       "ar_mock": true,
       "beslutsfattare": "Mock Demo (Etapp 0)",
-      "tidpunkt": "2026-09-05T21:05:01.443308+00:00",
+      "tidpunkt": "2026-09-05T21:33:10.076561+00:00",
       "path": "korningar/ews/G1/beslut.md",
       "rekommendation": {
         "fran_agent": "A1",

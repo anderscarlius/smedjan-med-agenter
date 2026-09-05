@@ -14,21 +14,23 @@ from orkestrering.llm_client import LlmClient
 
 
 class PipelineOrchestrator:
-    """Orkestrerar Smedjans pipeline för EWS-demo."""
+    """Orkestrerar Smedjans pipeline för olika PoC-laster."""
     
-    def __init__(self, client: LlmClient, workspace_root: Optional[Path] = None):
+    def __init__(self, client: LlmClient, workspace_root: Optional[Path] = None, project_slug: str = "ews"):
         """
         Initialisera orchestrator.
         
         Args:
             client: LLM-klient
             workspace_root: Rot för workspace (default: nuvarande katalog)
+            project_slug: Projekt-slug (default: "ews")
         """
         self.client = client
         if workspace_root is None:
             workspace_root = Path.cwd()
         self.workspace_root = Path(workspace_root)
-        self.korningar_dir = self.workspace_root / "korningar" / "ews"
+        self.project_slug = project_slug
+        self.korningar_dir = self.workspace_root / "korningar" / project_slug
         self.prompter_dir = self.workspace_root / "prompter"
     
     def _save_artifact(
@@ -71,14 +73,14 @@ class PipelineOrchestrator:
         with open(prompt_path) as f:
             return f.read()
     
-    def run_ews_demo(self, forslagsspec_content: Optional[str] = None) -> None:
+    def run_demo(self, forslagsspec_content: Optional[str] = None) -> None:
         """
-        Kör EWS-demo: steg 0 → 1 → G1 → 2.
+        Kör PoC-demo: steg 0 → 1 → G1 → 2.
         
         Args:
             forslagsspec_content: Innehåll i förslagsspec (eller None för att använda befintlig)
         """
-        print("=== Smedjan EWS Demo (Etapp 0 - Mock) ===\n")
+        print(f"=== Smedjan {self.project_slug.upper()} Demo (Etapp 0 - Mock) ===\n")
         
         # Om ingen förslagsspec finns, använd syntetisk
         if forslagsspec_content is None:
@@ -87,7 +89,7 @@ class PipelineOrchestrator:
                 with open(forslagsspec_path) as f:
                     forslagsspec_content = f.read()
             else:
-                forslagsspec_content = self._get_default_forslagsspec()
+                forslagsspec_content = self._get_default_forslagsspec(self.project_slug)
                 # Spara den syntetiska förslagsspecen
                 forslagsspec_path.parent.mkdir(parents=True, exist_ok=True)
                 with open(forslagsspec_path, "w") as f:
@@ -114,18 +116,19 @@ class PipelineOrchestrator:
         stories_result = self._run_step2(spec_result)
         print(f"✓ A2 klar. Output: {self.korningar_dir / 'steg2' / 'stories-v1.yaml'}\n")
         
-        print("=== EWS Demo slutförd ===")
+        print(f"=== {self.project_slug.upper()} Demo slutförd ===")
         print(f"Artefakter skapade under: {self.korningar_dir}")
         
-        # Generera korning.json
-        print("\n--- Genererar korning.json ---")
-        self._generate_korning_json()
-        print(f"✓ korning.json skapad: {self.korningar_dir / 'korning.json'}\n")
-        
-        # Exportera portal-bundle
-        print("--- Exporterar portal-bundle ---")
-        self._export_portal_data()
-        print(f"✓ Portal-bundle exporterad: {self.workspace_root / 'portal' / 'demo' / 'data'}\n")
+        # Generera korning.json (endast för EWS än så länge)
+        if self.project_slug == "ews":
+            print("\n--- Genererar korning.json ---")
+            self._generate_korning_json()
+            print(f"✓ korning.json skapad: {self.korningar_dir / 'korning.json'}\n")
+            
+            # Exportera portal-bundle
+            print("--- Exporterar portal-bundle ---")
+            self._export_portal_data()
+            print(f"✓ Portal-bundle exporterad: {self.workspace_root / 'portal' / 'demo' / 'data'}\n")
     
     def _run_step0(self, forslagsspec: str) -> Dict[str, Any]:
         """Kör steg 0: Intag (A0)."""
@@ -174,7 +177,7 @@ class PipelineOrchestrator:
         """Skapa mock G1-beslut (förifyllt godkännande)."""
         beslut_content = """---
 artifact_type: decision
-artifact_id: mock-g1-ews-001
+artifact_id: mock-g1-{project_slug}-001
 grind: G1
 decision: godkann
 created_by: Mock Demo (Etapp 0)
@@ -184,7 +187,7 @@ data_class: 0
 schema_version: "1.0"
 ---
 
-# Grindbeslut G1: EWS-001
+# Grindbeslut G1: {project_slug_upper}-001
 
 **Grind:** G1 (Specgodkännande)  
 **Beslut:** Godkänn  
@@ -201,7 +204,11 @@ För demo-syfte: Specen godkänns automatiskt för att demonstrera steg 2 (Nedbr
 ## Nästa steg
 
 - **Om godkänd:** Steg 2 (Nedbrytning) fortsätter
-""".format(timestamp=datetime.now(timezone.utc).isoformat())
+""".format(
+            project_slug=self.project_slug,
+            project_slug_upper=self.project_slug.upper(),
+            timestamp=datetime.now(timezone.utc).isoformat()
+        )
         
         g1_dir = self.korningar_dir / "G1"
         g1_dir.mkdir(parents=True, exist_ok=True)
@@ -693,3 +700,131 @@ Innehåller patientdata i prod → klass 2. Nu: syntetisk → klass 0.
         elif isinstance(data, list):
             for item in data:
                 self._rewrite_paths_for_portal(item)
+    
+    def run_ews_demo(self, forslagsspec_content: Optional[str] = None) -> None:
+        """
+        Kör EWS-demo: steg 0 → 1 → G1 → 2.
+        Kompatibilitetsmetod som anropar run_demo() med project_slug="ews".
+        
+        Args:
+            forslagsspec_content: Innehåll i förslagsspec (eller None för att använda befintlig)
+        """
+        # Säkerställ att project_slug är "ews"
+        if self.project_slug != "ews":
+            # Skapa ny orchestrator med rätt projekt
+            ews_orchestrator = PipelineOrchestrator(
+                self.client,
+                self.workspace_root,
+                project_slug="ews"
+            )
+            ews_orchestrator.run_demo(forslagsspec_content)
+        else:
+            self.run_demo(forslagsspec_content)
+    
+    def _get_default_forslagsspec(self, project_slug: str) -> str:
+        """Returnera syntetisk förslagsspec baserat på projekt-slug."""
+        if project_slug == "ews":
+            return """# Förslagsspec: Early Warning Score (EWS) från Philips
+
+## Beskrivning
+
+Vi vill hämta vital-parametrar från Philips-övervakningssystem och beräkna Early Warning Score (EWS) enligt NEWS2-standard. EWS-värdet ska sedan lagras i VGR Datahubb för användning i patientöversikter.
+
+## Användarnytta
+
+Sjukvårdspersonal kan snabbt identifiera patienter som försämras genom att se EWS-score i realtid.
+
+## Funktionella krav
+
+1. Hämta vitals från Philips-system via API (puls, blodtryck, saturation, temperatur, medvetandegrad)
+2. Beräkna EWS-score enligt National Early Warning Score 2 (NEWS2)
+3. Lagra EWS-värde med timestamp i VGR Datahubb
+4. Exponera API för att hämta senaste EWS per patient
+
+## Tekniska begränsningar
+
+- Philips-API använder REST + OAuth2
+- Data ska lagras i FHIR-format (Observation-resource)
+- Max 5 sekunders latens från Philips till Datahubb
+
+## Dataklass
+
+Klass 0 för etapp 0 (syntetisk testdata). Framtida klass 2 i produktion (riktig patientdata).
+
+## Sekretessbedömning
+
+Innehåller patientdata i prod → klass 2. Nu: syntetisk → klass 0.
+"""
+        elif project_slug == "patientoversikt":
+            return """# Förslagsspec: Patientöversikt
+
+## Beskrivning
+
+Vi vill skapa en patientöversikt som aggregerar data från flera källor (Cosmic, Pascal, journalsystem) och presenterar en enhetlig vy av patientens aktuella status, mediciner, diagnoser och planerade åtgärder.
+
+## Användarnytta
+
+Vårdpersonal får snabb tillgång till relevant patientinformation från olika system på en plats, vilket minskar risk för felbehandling och ökar effektiviteten.
+
+## Funktionella krav
+
+1. Hämta patientdata från Cosmic (mediciner), Pascal (lab-värden), och journalsystem (diagnoser, vårdkontakter)
+2. Aggregera och presentera data i enhetlig vy
+3. Visa senaste lab-värden med avvikelser markerade
+4. Visa aktiv medicinlista med dosering
+5. Visa aktiva diagnoser med ICD-10-koder
+6. Exponera API för patientöversikt (JSON)
+
+## Tekniska begränsningar
+
+- Integration via REST API mot alla tre system
+- Data ska cachas max 5 minuter
+- Autentisering via VGR SITHS
+- Response-tid max 2 sekunder
+
+## Dataklass
+
+Klass 0 för etapp 0 (syntetisk testdata). Framtida klass 2 i produktion (riktig patientdata).
+
+## Sekretessbedömning
+
+Innehåller patientdata i prod → klass 2. Nu: syntetisk → klass 0.
+"""
+        elif project_slug == "axel-fhir":
+            return """# Förslagsspec: Axel FHIR-integration
+
+## Beskrivning
+
+Vi vill integrera med Axel (nationell infrastruktur för informationsutbyte) för att kunna hämta och skicka FHIR-resurser mellan vårdgivare. Första versionen fokuserar på att hämta patientsammanfattningar (Patient Summary).
+
+## Användarnytta
+
+Vårdgivare kan hämta journalinformation från andra vårdgivare via Axel när patienten ger samtycke, vilket ger bättre beslutsunderlag vid vård.
+
+## Funktionella krav
+
+1. Autentisera mot Axel med SITHS-kort (HSA-id)
+2. Söka patient via personnummer
+3. Hämta Patient Summary (IPS - International Patient Summary) i FHIR-format
+4. Validera FHIR-resurser mot svensk profil
+5. Logga alla åtkomster för spårbarhet
+6. Exponera API för patientsammanfattning
+
+## Tekniska begränsningar
+
+- Axel använder FHIR R4 (svensk profil)
+- Autentisering via SITHS + OAuth2
+- PDL-loggning krävs för alla åtkomster
+- Max 10 sekunders timeout mot Axel
+- Kräver samtycke från patient (kontrolleras via API)
+
+## Dataklass
+
+Klass 0 för etapp 0 (syntetisk testdata, mockat Axel-API). Framtida klass 2 i produktion (riktig patientdata via Axel).
+
+## Sekretessbedömning
+
+Innehåller patientdata i prod → klass 2. Nu: syntetisk → klass 0.
+"""
+        else:
+            raise ValueError(f"Okänt projekt: {project_slug}")

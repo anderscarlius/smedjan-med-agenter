@@ -1,0 +1,12 @@
+{
+  "agent_id": "A2",
+  "pool": "C",
+  "family": "Mistral",
+  "model": "mistral-large",
+  "tokens": 0,
+  "cost_usd": 0.0,
+  "is_stub": true,
+  "backend": "mock",
+  "timestamp": "2026-09-05T21:18:35.193745+00:00",
+  "data_class": 0
+}

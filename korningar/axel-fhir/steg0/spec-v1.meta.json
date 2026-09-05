@@ -1,0 +1,12 @@
+{
+  "agent_id": "A0",
+  "pool": "A",
+  "family": "Anthropic",
+  "model": "claude-3-opus",
+  "tokens": 0,
+  "cost_usd": 0.0,
+  "is_stub": true,
+  "backend": "mock",
+  "timestamp": "2026-09-05T21:26:11.409786+00:00",
+  "data_class": 0
+}

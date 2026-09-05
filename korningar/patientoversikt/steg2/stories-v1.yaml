@@ -1,0 +1,25 @@
+---
+artifact_type: stories
+artifact_id: 770e8400-e29b-41d4-a716-446655440002
+created_by: A2
+created_at: 2026-09-08T12:00:00Z
+input_refs: ["550e8400-e29b-41d4-a716-446655440000"]
+data_class: 0
+schema_version: "1.0"
+---
+
+# User Stories: PO-001
+
+Följande stories skapades från spec PO-001:
+
+- PO-001.1: Hämta vitals från Philips-system
+- PO-001.2: Beräkna EWS-score enligt NEWS2
+- PO-001.3: Exponera API för att hämta senaste EWS
+- PO-001.4: Lagra EWS i Datahubb
+- PO-001.5: Autentisering OAuth2 mot Philips
+
+## Beroenden
+
+- PO-001.2 beror på PO-001.1
+- PO-001.3 beror på PO-001.2, PO-001.4
+- PO-001.4 beror på PO-001.2
