@@ -4,7 +4,7 @@ artifact_id: mock-g1-axel-fhir-001
 grind: G1
 decision: godkann
 created_by: Mock Demo (Etapp 0)
-created_at: 2026-09-05T21:18:40.153654+00:00
+created_at: 2026-09-05T21:26:11.410333+00:00
 input_refs: []
 data_class: 0
 schema_version: "1.0"
@@ -15,7 +15,7 @@ schema_version: "1.0"
 **Grind:** G1 (Specgodkännande)  
 **Beslut:** Godkänn  
 **Beslutsfattare:** Mock Demo (Etapp 0)  
-**Datum:** 2026-09-05T21:18:40.153654+00:00  
+**Datum:** 2026-09-05T21:26:11.410333+00:00  
 **Signatur:** N/A (Mock)
 
 ## Motivering

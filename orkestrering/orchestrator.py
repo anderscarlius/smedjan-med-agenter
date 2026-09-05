@@ -89,7 +89,7 @@ class PipelineOrchestrator:
                 with open(forslagsspec_path) as f:
                     forslagsspec_content = f.read()
             else:
-                forslagsspec_content = self._get_default_forslagsspec()
+                forslagsspec_content = self._get_default_forslagsspec(self.project_slug)
                 # Spara den syntetiska förslagsspecen
                 forslagsspec_path.parent.mkdir(parents=True, exist_ok=True)
                 with open(forslagsspec_path, "w") as f:
