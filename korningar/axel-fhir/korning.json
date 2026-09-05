@@ -1,0 +1,405 @@
+{
+  "schema_version": "1.0",
+  "korning_id": "axel-fhir-2026-09-05T21-42-34Z",
+  "projekt": "axel-fhir",
+  "titel": "Axel-FHIR: FHIR-integration för Axel-journalsystem",
+  "dataklass": 0,
+  "backend": "mock",
+  "ar_mock": true,
+  "startad": "2026-09-05T21:42:34.990530+00:00",
+  "avslutad": "2026-09-05T21:42:34.990530+00:00",
+  "varaktighet": "~1 s",
+  "status": "klar",
+  "kostnad": {
+    "tokens_in": 0,
+    "tokens_ut": 0,
+    "usd": 0.0
+  },
+  "steg_klara": "0–2",
+  "steg": [
+    {
+      "id": "steg0",
+      "nummer": 0,
+      "namn": "Intag",
+      "status": "klar",
+      "startad": "2026-09-05T21:42:34.989561+00:00",
+      "varaktighet_ms": 12,
+      "agent": {
+        "id": "A0",
+        "namn": "Intagsagent",
+        "pool": "A",
+        "familj": "Anthropic",
+        "modell": "claude-3-opus",
+        "ar_stub": true
+      },
+      "in": [
+        {
+          "roll": "forslagsspec",
+          "path": "korningar/axel-fhir/steg0/input.md"
+        }
+      ],
+      "ut": [
+        {
+          "typ": "spec",
+          "rubrik": "AX-001",
+          "path": "korningar/axel-fhir/steg0/spec-v1.md",
+          "meta_path": "korningar/axel-fhir/steg0/spec-v1.meta.json"
+        }
+      ],
+      "kostnad": {
+        "tokens_in": 0,
+        "tokens_ut": 0,
+        "usd": 0.0
+      },
+      "varv": 1,
+      "max_varv": 3
+    },
+    {
+      "id": "steg1",
+      "nummer": 1,
+      "namn": "Specgranskning",
+      "status": "klar",
+      "startad": "2026-09-05T21:42:34.989779+00:00",
+      "varaktighet_ms": 9,
+      "agent": {
+        "id": "A1",
+        "namn": "Specgranskare",
+        "pool": "B",
+        "familj": "OpenAI/Google",
+        "modell": "gpt-4",
+        "ar_stub": true
+      },
+      "in": [
+        {
+          "roll": "spec",
+          "path": "korningar/axel-fhir/steg0/spec-v1.md"
+        }
+      ],
+      "ut": [
+        {
+          "typ": "granskningsrapport",
+          "rubrik": "AX-001 · spec-v1",
+          "path": "korningar/axel-fhir/steg1/review-v1.md",
+          "meta_path": "korningar/axel-fhir/steg1/review-v1.meta.json"
+        }
+      ],
+      "kostnad": {
+        "tokens_in": 0,
+        "tokens_ut": 0,
+        "usd": 0.0
+      },
+      "varv": 1,
+      "max_varv": 3
+    },
+    {
+      "id": "steg2",
+      "nummer": 2,
+      "namn": "Nedbrytning",
+      "status": "klar",
+      "startad": "2026-09-05T21:42:34.990058+00:00",
+      "varaktighet_ms": 21,
+      "agent": {
+        "id": "A2",
+        "namn": "Nedbrytare",
+        "pool": "C",
+        "familj": "öppna vikter",
+        "modell": "mistral-large",
+        "ar_stub": true
+      },
+      "granskare": {
+        "id": "A3",
+        "namn": "Storygranskare",
+        "pool": "B",
+        "familj": "OpenAI/Google",
+        "modell": "gemini-3.7",
+        "ar_stub": true,
+        "varaktighet_ms": 14,
+        "ut": {
+          "typ": "tackningsmatris",
+          "path": "korningar/axel-fhir/steg2/tackning.md"
+        }
+      },
+      "in": [
+        {
+          "roll": "spec",
+          "path": "korningar/axel-fhir/steg0/spec-v1.md"
+        }
+      ],
+      "ut": [
+        {
+          "typ": "stories",
+          "rubrik": "AX-001",
+          "path": "korningar/axel-fhir/steg2/stories-v1.yaml",
+          "meta_path": "korningar/axel-fhir/steg2/stories-v1.meta.json"
+        }
+      ],
+      "kostnad": {
+        "tokens_in": 0,
+        "tokens_ut": 0,
+        "usd": 0.0
+      },
+      "varv": 1,
+      "max_varv": 3
+    }
+  ],
+  "grindar": [
+    {
+      "id": "G1",
+      "namn": "Specgodkännande",
+      "efter_steg": 1,
+      "status": "godkand_med_villkor",
+      "ar_mock": true,
+      "beslutsfattare": "Mock Demo (Etapp 0)",
+      "tidpunkt": "2026-09-05T21:42:34.989948+00:00",
+      "path": "korningar/axel-fhir/G1/beslut.md",
+      "rekommendation": {
+        "fran_agent": "A1",
+        "beslut": "godkann_med_villkor",
+        "citat": "Godkänn med villkor: F1 och F2 åtgärdas före nedbrytning.",
+        "villkor": [
+          "Lägg till felhantering-sektion i specen",
+          "Verifiera och referera Philips API-dokumentation"
+        ]
+      },
+      "underlag": [
+        {
+          "path": "korningar/axel-fhir/steg0/spec-v1.md",
+          "version": "1.0"
+        },
+        {
+          "path": "korningar/axel-fhir/steg1/review-v1.md",
+          "version": "1.0"
+        }
+      ],
+      "historik": [
+        "Underlag sammanställt (A1 klar)",
+        "Rekommendation: godkänn med villkor",
+        "Beslut registrerat i Git (förifyllt för demo)"
+      ]
+    },
+    {
+      "id": "G2",
+      "namn": "Backloggodkännande",
+      "efter_steg": 2,
+      "status": "vantar",
+      "ar_mock": true,
+      "beslutsfattare": null,
+      "tidpunkt": null,
+      "path": null,
+      "rekommendation": null,
+      "underlag": [],
+      "historik": []
+    },
+    {
+      "id": "G3",
+      "namn": "QA-godkännande",
+      "efter_steg": 8,
+      "status": "ej_nadd",
+      "ar_mock": true,
+      "rekommendation": null,
+      "underlag": [],
+      "historik": []
+    },
+    {
+      "id": "G4",
+      "namn": "Produktionsgodkännande",
+      "efter_steg": 9,
+      "status": "ej_nadd",
+      "ar_mock": true,
+      "rekommendation": null,
+      "underlag": [],
+      "historik": []
+    }
+  ],
+  "separation": [
+    {
+      "regel": "S1",
+      "text": "Ingen granskar sig själv",
+      "galler": [
+        "A0",
+        "A1"
+      ],
+      "pooler": "pool A → pool B",
+      "familjer": "Anthropic → OpenAI/Google",
+      "uppfylld": true,
+      "motivering": "olika pooler"
+    },
+    {
+      "regel": "S1",
+      "text": "Ingen granskar sig själv",
+      "galler": [
+        "A2",
+        "A3"
+      ],
+      "pooler": "pool C → pool B",
+      "familjer": "öppna vikter → OpenAI/Google",
+      "uppfylld": true,
+      "motivering": "olika pooler"
+    },
+    {
+      "regel": "S2",
+      "text": "Kontextseparation",
+      "galler": [
+        "steg 1"
+      ],
+      "pooler": "—",
+      "familjer": "—",
+      "uppfylld": true,
+      "motivering": "granskaren fick spec-v1.md och dess referenser, ingen sessionslogg"
+    },
+    {
+      "regel": "S3",
+      "text": "Skrivseparation",
+      "galler": [
+        "A0",
+        "A1",
+        "A2",
+        "A3"
+      ],
+      "pooler": "—",
+      "familjer": "—",
+      "uppfylld": true,
+      "motivering": "endast tillåtna artefakttyper skrivna"
+    },
+    {
+      "regel": "S4",
+      "text": "Proveniens",
+      "galler": [
+        "alla artefakter"
+      ],
+      "pooler": "—",
+      "familjer": "—",
+      "uppfylld": true,
+      "motivering": "proveniens finns i .meta.json för alla fyra artefakter"
+    },
+    {
+      "regel": "S5",
+      "text": "Mänsklig eskalering",
+      "galler": [
+        "steg 0–2"
+      ],
+      "pooler": "—",
+      "familjer": "—",
+      "uppfylld": true,
+      "motivering": "1 varv av max 3 i varje steg"
+    },
+    {
+      "regel": "S6",
+      "text": "Ingen tyst degradering",
+      "galler": [
+        "alla steg"
+      ],
+      "pooler": "—",
+      "familjer": "—",
+      "uppfylld": null,
+      "motivering": "mockad motor, ingen modell begärdes"
+    }
+  ],
+  "stories": [
+    {
+      "id": "AX-001.1",
+      "titel": "Hämta vitals från Philips-system",
+      "uppskattning": "M",
+      "beroenden": [],
+      "spec_krav": "K1",
+      "dataklass": 0,
+      "status": "todo",
+      "path": "korningar/axel-fhir/steg2/story-AX-001.1.md"
+    },
+    {
+      "id": "AX-001.2",
+      "titel": "Normalisera MDC-koder till openEHR-arketyper",
+      "uppskattning": "M",
+      "beroenden": [
+        "AX-001.1"
+      ],
+      "spec_krav": "K2",
+      "dataklass": 0,
+      "status": "todo",
+      "path": "korningar/axel-fhir/steg2/story-AX-001.2.md"
+    },
+    {
+      "id": "AX-001.3",
+      "titel": "Beräkna NEWS2 per mätpunkt",
+      "uppskattning": "L",
+      "beroenden": [
+        "AX-001.2"
+      ],
+      "spec_krav": "K3",
+      "dataklass": 0,
+      "status": "todo",
+      "path": "korningar/axel-fhir/steg2/story-AX-001.3.md"
+    },
+    {
+      "id": "AX-001.4",
+      "titel": "Publicera vitals.aggregated med versionerat schema",
+      "uppskattning": "M",
+      "beroenden": [
+        "AX-001.3"
+      ],
+      "spec_krav": "K4",
+      "dataklass": 0,
+      "status": "todo",
+      "path": "korningar/axel-fhir/steg2/story-AX-001.4.md"
+    },
+    {
+      "id": "AX-001.5",
+      "titel": "Lagra råsignal i tidsserie",
+      "uppskattning": "S",
+      "beroenden": [
+        "AX-001.1"
+      ],
+      "spec_krav": "K5",
+      "dataklass": 0,
+      "status": "todo",
+      "path": "korningar/axel-fhir/steg2/story-AX-001.5.md"
+    }
+  ],
+  "framtida_steg": [
+    {
+      "nummer": 3,
+      "namn": "Kodning",
+      "status": "vantar"
+    },
+    {
+      "nummer": 4,
+      "namn": "Enhetstester",
+      "status": "vantar"
+    },
+    {
+      "nummer": 5,
+      "namn": "Integrationstester",
+      "status": "vantar"
+    },
+    {
+      "nummer": 6,
+      "namn": "Testdeploy",
+      "status": "vantar"
+    },
+    {
+      "nummer": 7,
+      "namn": "Test av testdeploy",
+      "status": "vantar"
+    },
+    {
+      "nummer": 8,
+      "namn": "Utfall & triage",
+      "status": "vantar"
+    },
+    {
+      "nummer": 9,
+      "namn": "QA & integration",
+      "status": "vantar"
+    },
+    {
+      "nummer": 10,
+      "namn": "Produktionsdeploy",
+      "status": "vantar"
+    },
+    {
+      "nummer": 11,
+      "namn": "Övervakning & förbättring",
+      "status": "vantar"
+    }
+  ]
+}
