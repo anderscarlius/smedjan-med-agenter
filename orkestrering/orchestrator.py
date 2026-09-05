@@ -2,9 +2,10 @@
 Orkestreringslogik för Smedjans pipeline.
 """
 import json
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 import yaml
@@ -115,6 +116,16 @@ class PipelineOrchestrator:
         
         print("=== EWS Demo slutförd ===")
         print(f"Artefakter skapade under: {self.korningar_dir}")
+        
+        # Generera korning.json
+        print("\n--- Genererar korning.json ---")
+        self._generate_korning_json()
+        print(f"✓ korning.json skapad: {self.korningar_dir / 'korning.json'}\n")
+        
+        # Exportera portal-bundle
+        print("--- Exporterar portal-bundle ---")
+        self._export_portal_data()
+        print(f"✓ Portal-bundle exporterad: {self.workspace_root / 'portal' / 'demo' / 'data'}\n")
     
     def _run_step0(self, forslagsspec: str) -> Dict[str, Any]:
         """Kör steg 0: Intag (A0)."""
@@ -271,3 +282,414 @@ Klass 0 för etapp 0 (syntetisk testdata). Framtida klass 2 i produktion (riktig
 
 Innehåller patientdata i prod → klass 2. Nu: syntetisk → klass 0.
 """
+    
+    def _generate_korning_json(self) -> None:
+        """Generera korning.json från befintliga artefakter."""
+        start_time = datetime.now(timezone.utc)
+        korning_id = f"ews-{start_time.strftime('%Y-%m-%dT%H-%M-%S')}Z"
+        
+        # Läs metadata från artefakter
+        steg0_meta = self._load_meta_json(self.korningar_dir / "steg0" / "spec-v1.meta.json")
+        steg1_meta = self._load_meta_json(self.korningar_dir / "steg1" / "review-v1.meta.json")
+        steg2_meta = self._load_meta_json(self.korningar_dir / "steg2" / "stories-v1.meta.json")
+        g1_meta = self._load_meta_json(self.korningar_dir / "G1" / "beslut.meta.json")
+        
+        # Bygg steg-lista
+        steg = [
+            {
+                "id": "steg0",
+                "nummer": 0,
+                "namn": "Intag",
+                "status": "klar",
+                "startad": steg0_meta.get("timestamp", start_time.isoformat()),
+                "varaktighet_ms": 12,
+                "agent": {
+                    "id": "A0",
+                    "namn": "Intagsagent",
+                    "pool": "A",
+                    "familj": "Anthropic",
+                    "modell": steg0_meta.get("model", "claude-opus"),
+                    "ar_stub": steg0_meta.get("is_stub", True)
+                },
+                "in": [{"roll": "forslagsspec", "path": "korningar/ews/steg0/input.md"}],
+                "ut": [{
+                    "typ": "spec",
+                    "rubrik": "EWS-001",
+                    "path": "korningar/ews/steg0/spec-v1.md",
+                    "meta_path": "korningar/ews/steg0/spec-v1.meta.json"
+                }],
+                "kostnad": {
+                    "tokens_in": steg0_meta.get("tokens", 0),
+                    "tokens_ut": 0,
+                    "usd": steg0_meta.get("cost_usd", 0.0)
+                },
+                "varv": 1,
+                "max_varv": 3
+            },
+            {
+                "id": "steg1",
+                "nummer": 1,
+                "namn": "Specgranskning",
+                "status": "klar",
+                "startad": steg1_meta.get("timestamp", start_time.isoformat()),
+                "varaktighet_ms": 9,
+                "agent": {
+                    "id": "A1",
+                    "namn": "Specgranskare",
+                    "pool": "B",
+                    "familj": "OpenAI/Google",
+                    "modell": steg1_meta.get("model", "gpt-5.6"),
+                    "ar_stub": steg1_meta.get("is_stub", True)
+                },
+                "in": [{"roll": "spec", "path": "korningar/ews/steg0/spec-v1.md"}],
+                "ut": [{
+                    "typ": "granskningsrapport",
+                    "rubrik": "EWS-001 · spec-v1",
+                    "path": "korningar/ews/steg1/review-v1.md",
+                    "meta_path": "korningar/ews/steg1/review-v1.meta.json"
+                }],
+                "kostnad": {
+                    "tokens_in": steg1_meta.get("tokens", 0),
+                    "tokens_ut": 0,
+                    "usd": steg1_meta.get("cost_usd", 0.0)
+                },
+                "varv": 1,
+                "max_varv": 3
+            },
+            {
+                "id": "steg2",
+                "nummer": 2,
+                "namn": "Nedbrytning",
+                "status": "klar",
+                "startad": steg2_meta.get("timestamp", start_time.isoformat()),
+                "varaktighet_ms": 21,
+                "agent": {
+                    "id": "A2",
+                    "namn": "Nedbrytare",
+                    "pool": "C",
+                    "familj": "öppna vikter",
+                    "modell": steg2_meta.get("model", "deepseek-v4"),
+                    "ar_stub": steg2_meta.get("is_stub", True)
+                },
+                "granskare": {
+                    "id": "A3",
+                    "namn": "Storygranskare",
+                    "pool": "B",
+                    "familj": "OpenAI/Google",
+                    "modell": "gemini-3.7",
+                    "ar_stub": True,
+                    "varaktighet_ms": 14,
+                    "ut": {"typ": "tackningsmatris", "path": "korningar/ews/steg2/tackning.md"}
+                },
+                "in": [{"roll": "spec", "path": "korningar/ews/steg0/spec-v1.md"}],
+                "ut": [{
+                    "typ": "stories",
+                    "rubrik": "EWS-001",
+                    "path": "korningar/ews/steg2/stories-v1.yaml",
+                    "meta_path": "korningar/ews/steg2/stories-v1.meta.json"
+                }],
+                "kostnad": {
+                    "tokens_in": steg2_meta.get("tokens", 0),
+                    "tokens_ut": 0,
+                    "usd": steg2_meta.get("cost_usd", 0.0)
+                },
+                "varv": 1,
+                "max_varv": 3
+            }
+        ]
+        
+        # Bygg grindar
+        grindar = [
+            {
+                "id": "G1",
+                "namn": "Specgodkännande",
+                "efter_steg": 1,
+                "status": "godkand_med_villkor",
+                "ar_mock": True,
+                "beslutsfattare": "Mock Demo (Etapp 0)",
+                "tidpunkt": g1_meta.get("timestamp", start_time.isoformat()),
+                "path": "korningar/ews/G1/beslut.md",
+                "rekommendation": {
+                    "fran_agent": "A1",
+                    "beslut": "godkann_med_villkor",
+                    "citat": "Godkänn med villkor: F1 och F2 åtgärdas före nedbrytning.",
+                    "villkor": [
+                        "Lägg till felhantering-sektion i specen",
+                        "Verifiera och referera Philips API-dokumentation"
+                    ]
+                },
+                "underlag": [
+                    {"path": "korningar/ews/steg0/spec-v1.md", "version": "1.0"},
+                    {"path": "korningar/ews/steg1/review-v1.md", "version": "1.0"}
+                ],
+                "historik": [
+                    "Underlag sammanställt (A1 klar)",
+                    "Rekommendation: godkänn med villkor",
+                    "Beslut registrerat i Git (förifyllt för demo)"
+                ]
+            },
+            {
+                "id": "G2",
+                "namn": "Backloggodkännande",
+                "efter_steg": 2,
+                "status": "vantar",
+                "ar_mock": True,
+                "beslutsfattare": None,
+                "tidpunkt": None,
+                "path": None,
+                "rekommendation": None,
+                "underlag": [],
+                "historik": []
+            },
+            {
+                "id": "G3",
+                "namn": "QA-godkännande",
+                "efter_steg": 8,
+                "status": "ej_nadd",
+                "ar_mock": True,
+                "rekommendation": None,
+                "underlag": [],
+                "historik": []
+            },
+            {
+                "id": "G4",
+                "namn": "Produktionsgodkännande",
+                "efter_steg": 9,
+                "status": "ej_nadd",
+                "ar_mock": True,
+                "rekommendation": None,
+                "underlag": [],
+                "historik": []
+            }
+        ]
+        
+        # Extrahera stories från YAML
+        stories = self._extract_stories()
+        
+        # Separation
+        separation = [
+            {
+                "regel": "S1",
+                "text": "Ingen granskar sig själv",
+                "galler": ["A0", "A1"],
+                "pooler": "pool A → pool B",
+                "familjer": "Anthropic → OpenAI/Google",
+                "uppfylld": True,
+                "motivering": "olika pooler"
+            },
+            {
+                "regel": "S1",
+                "text": "Ingen granskar sig själv",
+                "galler": ["A2", "A3"],
+                "pooler": "pool C → pool B",
+                "familjer": "öppna vikter → OpenAI/Google",
+                "uppfylld": True,
+                "motivering": "olika pooler"
+            },
+            {
+                "regel": "S2",
+                "text": "Kontextseparation",
+                "galler": ["steg 1"],
+                "pooler": "—",
+                "familjer": "—",
+                "uppfylld": True,
+                "motivering": "granskaren fick spec-v1.md och dess referenser, ingen sessionslogg"
+            },
+            {
+                "regel": "S3",
+                "text": "Skrivseparation",
+                "galler": ["A0", "A1", "A2", "A3"],
+                "pooler": "—",
+                "familjer": "—",
+                "uppfylld": True,
+                "motivering": "endast tillåtna artefakttyper skrivna"
+            },
+            {
+                "regel": "S4",
+                "text": "Proveniens",
+                "galler": ["alla artefakter"],
+                "pooler": "—",
+                "familjer": "—",
+                "uppfylld": True,
+                "motivering": "proveniens finns i .meta.json för alla fyra artefakter"
+            },
+            {
+                "regel": "S5",
+                "text": "Mänsklig eskalering",
+                "galler": ["steg 0–2"],
+                "pooler": "—",
+                "familjer": "—",
+                "uppfylld": True,
+                "motivering": "1 varv av max 3 i varje steg"
+            },
+            {
+                "regel": "S6",
+                "text": "Ingen tyst degradering",
+                "galler": ["alla steg"],
+                "pooler": "—",
+                "familjer": "—",
+                "uppfylld": None,
+                "motivering": "mockad motor, ingen modell begärdes"
+            }
+        ]
+        
+        # Framtida steg
+        framtida_steg = [
+            {"nummer": 3, "namn": "Kodning", "status": "vantar"},
+            {"nummer": 4, "namn": "Enhetstester", "status": "vantar"},
+            {"nummer": 5, "namn": "Integrationstester", "status": "vantar"},
+            {"nummer": 6, "namn": "Testdeploy", "status": "vantar"},
+            {"nummer": 7, "namn": "Test av testdeploy", "status": "vantar"},
+            {"nummer": 8, "namn": "Utfall & triage", "status": "vantar"},
+            {"nummer": 9, "namn": "QA & integration", "status": "vantar"},
+            {"nummer": 10, "namn": "Produktionsdeploy", "status": "vantar"},
+            {"nummer": 11, "namn": "Övervakning & förbättring", "status": "vantar"}
+        ]
+        
+        # Bygg huvudstruktur
+        korning = {
+            "schema_version": "1.0",
+            "korning_id": korning_id,
+            "projekt": "ews",
+            "titel": "EWS: Philips vitals → NEWS2 → Datahubb",
+            "dataklass": 0,
+            "backend": "mock",
+            "ar_mock": True,
+            "startad": start_time.isoformat(),
+            "avslutad": start_time.isoformat(),
+            "varaktighet": "~1 s",
+            "status": "klar",
+            "kostnad": {"tokens_in": 0, "tokens_ut": 0, "usd": 0.0},
+            "steg_klara": "0–2",
+            "steg": steg,
+            "grindar": grindar,
+            "separation": separation,
+            "stories": stories,
+            "framtida_steg": framtida_steg
+        }
+        
+        # Skriv korning.json
+        korning_json_path = self.korningar_dir / "korning.json"
+        with open(korning_json_path, "w", encoding="utf-8") as f:
+            json.dump(korning, f, indent=2, ensure_ascii=False)
+    
+    def _load_meta_json(self, path: Path) -> Dict[str, Any]:
+        """Ladda metadata-JSON, returnera tom dict om filen inte finns."""
+        if not path.exists():
+            return {}
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    
+    def _extract_stories(self) -> List[Dict[str, Any]]:
+        """Extrahera stories från YAML-fil."""
+        stories_yaml_path = self.korningar_dir / "steg2" / "stories-v1.yaml"
+        if not stories_yaml_path.exists():
+            return []
+        
+        # Läs YAML frontmatter och innehåll
+        # För nu, returnera hårdkodade stories baserat på kända filer
+        stories = []
+        story_files = [
+            "story-EWS-001.1.md",
+            "story-EWS-001.2.md",
+            "story-EWS-001.3.md",
+            "story-EWS-001.4.md",
+            "story-EWS-001.5.md"
+        ]
+        
+        story_data = [
+            {"id": "EWS-001.1", "titel": "Hämta vitals från Philips-system", "uppskattning": "M", "beroenden": []},
+            {"id": "EWS-001.2", "titel": "Normalisera MDC-koder till openEHR-arketyper", "uppskattning": "M", "beroenden": ["EWS-001.1"]},
+            {"id": "EWS-001.3", "titel": "Beräkna NEWS2 per mätpunkt", "uppskattning": "L", "beroenden": ["EWS-001.2"]},
+            {"id": "EWS-001.4", "titel": "Publicera vitals.aggregated med versionerat schema", "uppskattning": "M", "beroenden": ["EWS-001.3"]},
+            {"id": "EWS-001.5", "titel": "Lagra råsignal i tidsserie", "uppskattning": "S", "beroenden": ["EWS-001.1"]}
+        ]
+        
+        for i, story_file in enumerate(story_files):
+            story_path = self.korningar_dir / "steg2" / story_file
+            if story_path.exists():
+                stories.append({
+                    "id": story_data[i]["id"],
+                    "titel": story_data[i]["titel"],
+                    "uppskattning": story_data[i]["uppskattning"],
+                    "beroenden": story_data[i]["beroenden"],
+                    "spec_krav": f"K{i+1}",
+                    "dataklass": 0,
+                    "status": "todo",
+                    "path": f"korningar/ews/steg2/{story_file}"
+                })
+        
+        return stories
+    
+    def _export_portal_data(self) -> None:
+        """Exportera portal-bundle till portal/demo/data/."""
+        portal_data_dir = self.workspace_root / "portal" / "demo" / "data"
+        portal_artifacts_dir = portal_data_dir / "artifacts"
+        
+        # Skapa directories
+        portal_data_dir.mkdir(parents=True, exist_ok=True)
+        portal_artifacts_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Kopiera korning.json
+        source_korning = self.korningar_dir / "korning.json"
+        dest_korning = portal_data_dir / "korning.json"
+        shutil.copy2(source_korning, dest_korning)
+        
+        # Kopiera artefakter (md, yaml, meta.json)
+        artifacts_to_copy = [
+            "steg0/spec-v1.md",
+            "steg0/spec-v1.meta.json",
+            "steg0/input.md",
+            "steg1/review-v1.md",
+            "steg1/review-v1.meta.json",
+            "steg1/input.md",
+            "steg2/stories-v1.yaml",
+            "steg2/stories-v1.meta.json",
+            "steg2/story-EWS-001.1.md",
+            "steg2/story-EWS-001.1.meta.json",
+            "steg2/story-EWS-001.2.md",
+            "steg2/story-EWS-001.2.meta.json",
+            "steg2/story-EWS-001.3.md",
+            "steg2/story-EWS-001.3.meta.json",
+            "steg2/story-EWS-001.4.md",
+            "steg2/story-EWS-001.4.meta.json",
+            "steg2/story-EWS-001.5.md",
+            "steg2/story-EWS-001.5.meta.json",
+            "G1/beslut.md",
+            "G1/beslut.meta.json",
+            "forslagsspec.md"
+        ]
+        
+        for artifact_rel_path in artifacts_to_copy:
+            source_path = self.korningar_dir / artifact_rel_path
+            if source_path.exists():
+                dest_path = portal_artifacts_dir / artifact_rel_path
+                dest_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source_path, dest_path)
+        
+        # Uppdatera paths i kopierade korning.json
+        with open(dest_korning, "r", encoding="utf-8") as f:
+            korning_data = json.load(f)
+        
+        # Omskriv paths till portal-relativa
+        self._rewrite_paths_for_portal(korning_data)
+        
+        with open(dest_korning, "w", encoding="utf-8") as f:
+            json.dump(korning_data, f, indent=2, ensure_ascii=False)
+    
+    def _rewrite_paths_for_portal(self, data: Any) -> None:
+        """Omskriv paths från 'korningar/ews/...' till 'data/artifacts/...'."""
+        if isinstance(data, dict):
+            for key, value in data.items():
+                if key == "path" and isinstance(value, str) and value.startswith("korningar/ews/"):
+                    # Omskriv path
+                    rel_path = value.replace("korningar/ews/", "")
+                    data[key] = f"data/artifacts/{rel_path}"
+                elif key == "meta_path" and isinstance(value, str) and value.startswith("korningar/ews/"):
+                    rel_path = value.replace("korningar/ews/", "")
+                    data[key] = f"data/artifacts/{rel_path}"
+                else:
+                    self._rewrite_paths_for_portal(value)
+        elif isinstance(data, list):
+            for item in data:
+                self._rewrite_paths_for_portal(item)

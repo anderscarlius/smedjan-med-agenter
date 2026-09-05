@@ -2,6 +2,26 @@
 
 Statisk läsvy över Git-exempeldata för VGR-demo. Ingen API-nyckel. Inga modellanrop. Portalen skriver inte.
 
+## Datakälla
+
+Portalen läser körningsdata från `data/korning.json` och tillhörande artefakter under `data/artifacts/`.
+
+### Generera körningsdata
+
+Kör CLI-kommandot från repository-roten:
+
+```bash
+python3 -m orkestrering demo ews
+```
+
+Detta genererar:
+- `korningar/ews/korning.json` — indexet med körningsmetadata
+- `korningar/ews/steg*/` — artefakter (spec, review, stories, beslut)
+- `portal/demo/data/korning.json` — portal-version med omskrivna paths
+- `portal/demo/data/artifacts/` — kopierade artefakter för portalen
+
+Portalen förväntar att `data/` finns och innehåller giltig körningsdata. Om `data/korning.json` saknas visas ett tomt läge med instruktioner.
+
 ## Lokal start (30 sekunder)
 
 ```bash
