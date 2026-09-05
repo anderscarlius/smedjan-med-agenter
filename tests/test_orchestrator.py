@@ -36,7 +36,27 @@ def orchestrator(temp_workspace):
         config_path=temp_workspace / ".smedjan" / "agents.yaml",
         backend="mock"
     )
-    return PipelineOrchestrator(client, workspace_root=temp_workspace)
+    return PipelineOrchestrator(client, workspace_root=temp_workspace, project_slug="ews")
+
+
+@pytest.fixture
+def orchestrator_patientoversikt(temp_workspace):
+    """Skapa orchestrator för patientoversikt med temporär workspace."""
+    client = LlmClient(
+        config_path=temp_workspace / ".smedjan" / "agents.yaml",
+        backend="mock"
+    )
+    return PipelineOrchestrator(client, workspace_root=temp_workspace, project_slug="patientoversikt")
+
+
+@pytest.fixture
+def orchestrator_axel_fhir(temp_workspace):
+    """Skapa orchestrator för axel-fhir med temporär workspace."""
+    client = LlmClient(
+        config_path=temp_workspace / ".smedjan" / "agents.yaml",
+        backend="mock"
+    )
+    return PipelineOrchestrator(client, workspace_root=temp_workspace, project_slug="axel-fhir")
 
 
 def test_ews_demo_creates_artifacts(orchestrator, temp_workspace):
@@ -219,3 +239,110 @@ def test_portal_data_exported(orchestrator, temp_workspace):
     assert (artifacts_dir / "steg1" / "review-v1.md").exists()
     assert (artifacts_dir / "steg2" / "stories-v1.yaml").exists()
     assert (artifacts_dir / "G1" / "beslut.md").exists()
+
+
+def test_patientoversikt_demo_creates_artifacts(orchestrator_patientoversikt, temp_workspace):
+    """Testa att patientoversikt-demo skapar alla förväntade artefakter."""
+    orchestrator_patientoversikt.run_demo()
+    
+    korningar_dir = temp_workspace / "korningar" / "patientoversikt"
+    
+    # Steg 0
+    assert (korningar_dir / "steg0" / "spec-v1.md").exists()
+    assert (korningar_dir / "steg0" / "spec-v1.meta.json").exists()
+    
+    # Steg 1
+    assert (korningar_dir / "steg1" / "review-v1.md").exists()
+    assert (korningar_dir / "steg1" / "review-v1.meta.json").exists()
+    
+    # G1
+    assert (korningar_dir / "G1" / "beslut.md").exists()
+    
+    # Steg 2
+    assert (korningar_dir / "steg2" / "stories-v1.yaml").exists()
+    assert (korningar_dir / "steg2" / "stories-v1.meta.json").exists()
+    
+    # Korning.json
+    assert (korningar_dir / "korning.json").exists()
+    
+    import json
+    with open(korningar_dir / "korning.json", encoding="utf-8") as f:
+        korning = json.load(f)
+    
+    assert korning["projekt"] == "patientoversikt"
+    assert korning["steg"][0]["ut"][0]["rubrik"] == "PO-001"
+
+
+def test_axel_fhir_demo_creates_artifacts(orchestrator_axel_fhir, temp_workspace):
+    """Testa att axel-fhir-demo skapar alla förväntade artefakter."""
+    orchestrator_axel_fhir.run_demo()
+    
+    korningar_dir = temp_workspace / "korningar" / "axel-fhir"
+    
+    # Steg 0
+    assert (korningar_dir / "steg0" / "spec-v1.md").exists()
+    assert (korningar_dir / "steg0" / "spec-v1.meta.json").exists()
+    
+    # Steg 1
+    assert (korningar_dir / "steg1" / "review-v1.md").exists()
+    assert (korningar_dir / "steg1" / "review-v1.meta.json").exists()
+    
+    # G1
+    assert (korningar_dir / "G1" / "beslut.md").exists()
+    
+    # Steg 2
+    assert (korningar_dir / "steg2" / "stories-v1.yaml").exists()
+    assert (korningar_dir / "steg2" / "stories-v1.meta.json").exists()
+    
+    # Korning.json
+    assert (korningar_dir / "korning.json").exists()
+    
+    import json
+    with open(korningar_dir / "korning.json", encoding="utf-8") as f:
+        korning = json.load(f)
+    
+    assert korning["projekt"] == "axel-fhir"
+    assert korning["steg"][0]["ut"][0]["rubrik"] == "AX-001"
+
+
+def test_story_prefix_mapping(temp_workspace):
+    """Testa att story-prefix mappar korrekt för alla projekt."""
+    client = LlmClient(
+        config_path=temp_workspace / ".smedjan" / "agents.yaml",
+        backend="mock"
+    )
+    
+    # EWS
+    orch_ews = PipelineOrchestrator(client, temp_workspace, project_slug="ews")
+    assert orch_ews._get_story_prefix() == "EWS"
+    
+    # Patientoversikt
+    orch_po = PipelineOrchestrator(client, temp_workspace, project_slug="patientoversikt")
+    assert orch_po._get_story_prefix() == "PO"
+    
+    # Axel-FHIR
+    orch_ax = PipelineOrchestrator(client, temp_workspace, project_slug="axel-fhir")
+    assert orch_ax._get_story_prefix() == "AX"
+
+
+def test_korningar_directory_per_project(temp_workspace):
+    """Testa att varje projekt får sin egen korningar-katalog."""
+    client = LlmClient(
+        config_path=temp_workspace / ".smedjan" / "agents.yaml",
+        backend="mock"
+    )
+    
+    # Skapa orchestratorer för olika projekt
+    orch_ews = PipelineOrchestrator(client, temp_workspace, project_slug="ews")
+    orch_po = PipelineOrchestrator(client, temp_workspace, project_slug="patientoversikt")
+    orch_ax = PipelineOrchestrator(client, temp_workspace, project_slug="axel-fhir")
+    
+    # Kör demos
+    orch_ews.run_demo()
+    orch_po.run_demo()
+    orch_ax.run_demo()
+    
+    # Verifiera att separata kataloger skapades
+    assert (temp_workspace / "korningar" / "ews" / "korning.json").exists()
+    assert (temp_workspace / "korningar" / "patientoversikt" / "korning.json").exists()
+    assert (temp_workspace / "korningar" / "axel-fhir" / "korning.json").exists()
